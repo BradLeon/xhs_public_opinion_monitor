@@ -52,39 +52,38 @@ class AdvancedBrandAnalyzer(BaseTool):
             
             analysis_result = response.choices[0].message.content
             logger.info(f"[AdvancedBrandAnalyzer] LLM原始输出长度: {len(analysis_result)}")
-            logger.info(f"[AdvancedBrandAnalyzer] LLM原始输出: {analysis_result}")
+            #logger.info(f"[AdvancedBrandAnalyzer] LLM原始输出: {analysis_result}")
             
             # 预处理：检查是否包含明显的异常内容
             if self._contains_anomalous_content(analysis_result):
                 logger.warning("[AdvancedBrandAnalyzer] 检测到异常内容，尝试重新处理")
                 analysis_result = self._remove_anomalous_content(analysis_result)
-            logger.info(f"[AdvancedBrandAnalyzer] after _remove_anomalous_content 输出: {analysis_result}")
+            #logger.info(f"[AdvancedBrandAnalyzer] after _remove_anomalous_content 输出: {analysis_result}")
             
             # 解析和验证结果
             parsed_result = self._parse_and_validate_json(analysis_result)
-            logger.info(f"[AdvancedBrandAnalyzer] after _parse_and_validate_json 输出: {parsed_result}")
+            #logger.info(f"[AdvancedBrandAnalyzer] after _parse_and_validate_json 输出: {parsed_result}")
 
             
             # 最终JSON验证
             final_json = self._ensure_valid_json_output(parsed_result)
             
-            logger.info(f"[AdvancedBrandAnalyzer] after _ensure_valid_json_output 最终输出: {final_json}")
+            #logger.info(f"[AdvancedBrandAnalyzer] after _ensure_valid_json_output 最终输出: {parsed_result}")
 
+            #logger.info(f"[AdvancedBrandAnalyzer] 最终输出: {final_json}")
+            
             return final_json
             
         except Exception as e:
-            logger.error(f"[AdvancedBrandAnalyzer] 高级品牌分析失败: {e}")
-            # 返回标记失败的结果，包含错误信息
-            error_result = {
+            logger.error(f"高级品牌分析失败: {e}")
+            # 返回标准的空结果JSON
+            empty_result = {
                 "brand_list": [],
                 "spu_list": [],
                 "emotion_dict": {},
-                "evaluation_dict": {},
-                "_analysis_failed": True,
-                "_error_message": str(e),
-                "_error_type": "analysis_exception"
+                "evaluation_dict": {}
             }
-            return json.dumps(error_result, ensure_ascii=False)
+            return json.dumps(empty_result, ensure_ascii=False)
     
     def _ensure_valid_json_output(self, parsed_result: Dict[str, Any]) -> str:
         """确保输出是有效的JSON格式"""
@@ -100,9 +99,14 @@ class AdvancedBrandAnalyzer(BaseTool):
             
         except Exception as e:
             logger.error(f"[AdvancedBrandAnalyzer] JSON格式验证失败: {e}")
-            # 返回标记失败的结果
-            error_result = self._get_failed_result("json_validation_error", f"JSON格式验证失败: {str(e)}")
-            return json.dumps(error_result, ensure_ascii=False, separators=(',', ':'))
+            # 返回标准的空结果
+            empty_result = {
+                "brand_list": [],
+                "spu_list": [],
+                "emotion_dict": {},
+                "evaluation_dict": {}
+            }
+            return json.dumps(empty_result, ensure_ascii=False, separators=(',', ':'))
     
     def _parse_and_validate_json(self, result: str) -> Dict[str, Any]:
         """解析和验证LLM返回的分析结果"""
@@ -113,8 +117,8 @@ class AdvancedBrandAnalyzer(BaseTool):
             json_str = self._extract_json_from_text(result)
             
             if not json_str:
-                logger.warning("[AdvancedBrandAnalyzer] 无法提取JSON，返回失败标记")
-                return self._get_failed_result("json_extraction_failed", "无法从LLM输出中提取有效JSON")
+                logger.warning("[AdvancedBrandAnalyzer] 无法提取JSON，返回空结果")
+                return self._get_empty_result()
             
             # 尝试解析JSON
             parsed = json.loads(json_str)
@@ -132,10 +136,10 @@ class AdvancedBrandAnalyzer(BaseTool):
             logger.error(f"[AdvancedBrandAnalyzer] JSON解析失败: {e}")
             logger.error(f"[AdvancedBrandAnalyzer] 问题位置: {e.pos if hasattr(e, 'pos') else 'unknown'}")
             logger.error(f"[AdvancedBrandAnalyzer] 原始内容: {result}")
-            return self._get_failed_result("json_decode_error", f"JSON解析错误: {str(e)}")
+            return self._get_empty_result()
         except Exception as e:
             logger.error(f"[AdvancedBrandAnalyzer] 其他解析错误: {e}")
-            return self._get_failed_result("parsing_error", f"解析过程出错: {str(e)}")
+            return self._get_empty_result()
     
     def _extract_json_from_text(self, text: str) -> Optional[str]:
         """从文本中提取JSON"""
@@ -233,7 +237,7 @@ class AdvancedBrandAnalyzer(BaseTool):
         """标准化解析结果格式"""
         if not isinstance(parsed, dict):
             logger.warning(f"[AdvancedBrandAnalyzer] 解析结果不是字典格式: {type(parsed)}")
-            return self._get_failed_result("invalid_result_format", "解析结果不是有效的字典格式")
+            return self._get_empty_result()
         
         # 确保所有必需字段存在
         result = {
@@ -245,21 +249,14 @@ class AdvancedBrandAnalyzer(BaseTool):
         
         return result
     
-    def _get_failed_result(self, error_type: str, error_message: str) -> Dict[str, Any]:
-        """返回标记为失败的结果"""
+    def _get_empty_result(self) -> Dict[str, Any]:
+        """获取空的标准结果"""
         return {
             "brand_list": [],
             "spu_list": [],
             "emotion_dict": {},
-            "evaluation_dict": {},
-            "_analysis_failed": True,
-            "_error_type": error_type,
-            "_error_message": error_message
+            "evaluation_dict": {}
         }
-    
-    def _get_empty_result(self) -> Dict[str, Any]:
-        """返回空结果（保留兼容性）"""
-        return self._get_failed_result("empty_result", "分析结果为空")
     
     def _optimize_content_length(self, content: str, max_length: int = 8000) -> str:
         """优化内容长度，避免上下文过长"""
