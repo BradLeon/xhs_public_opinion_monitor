@@ -9,7 +9,7 @@ class BatchConfig:
     """批次处理配置类"""
     
     # 数据库操作配置
-    DB_READ_BATCH_SIZE = 50     # 数据库读取批次大小（可以较大，数据库能处理）
+    DB_READ_BATCH_SIZE = 100     # 数据库读取批次大小（可以较大，数据库能处理）
     DB_WRITE_MAX_SIZE = 200     # 数据库写入最大批次（批量写入的安全限制）
     
     # AI分析配置

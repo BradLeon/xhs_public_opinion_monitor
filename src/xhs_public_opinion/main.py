@@ -6,6 +6,7 @@ import json
 import re
 from datetime import datetime
 from dotenv import load_dotenv
+import logging
 
 
 from xhs_public_opinion.crew import XhsPublicOpinionCrew
@@ -14,6 +15,8 @@ from xhs_public_opinion.tools import (
     DatabaseWriterTool
 )
 from xhs_public_opinion.config.batch_config import BatchConfig
+
+logger = logging.getLogger(__name__)
 
 warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
 
@@ -153,8 +156,56 @@ def run():
                         })
                         continue
                     
+                    # 分离成功和失败的结果
+                    successful_results = []
+                    failed_results = []
+                    
+                    for i, result in enumerate(batch_results):
+                        try:
+                            # 检查是否为失败的结果
+                            if isinstance(result, dict) and result.get('_analysis_failed', False):
+                                failed_results.append({
+                                    'index': i,
+                                    'error_type': result.get('_error_type', 'unknown'),
+                                    'error_message': result.get('_error_message', 'unknown error')
+                                })
+                                logger.warning(f"[Main] 第{batch_number}批第{i+1}条结果分析失败: {result.get('_error_message', 'unknown')}")
+                            else:
+                                # 移除可能存在的失败标记字段（如果有的话）
+                                cleaned_result = {k: v for k, v in result.items() if not k.startswith('_analysis_')}
+                                successful_results.append(cleaned_result)
+                        except Exception as e:
+                            failed_results.append({
+                                'index': i,
+                                'error_type': 'result_processing_error',
+                                'error_message': f'结果处理错误: {str(e)}'
+                            })
+                            logger.warning(f"[Main] 第{batch_number}批第{i+1}条结果处理失败: {e}")
+                    
                     total_analysis_results += len(batch_results)
-                    print(f"📊 第{batch_number}批解析成功，获得 {len(batch_results)} 条分析结果")
+                    success_count = len(successful_results)
+                    fail_count = len(failed_results)
+                    
+                    print(f"📊 第{batch_number}批解析完成: 总计 {len(batch_results)} 条，成功 {success_count} 条，失败 {fail_count} 条")
+                    
+                    if fail_count > 0:
+                        print(f"⚠️ 第{batch_number}批失败详情:")
+                        for fail_info in failed_results[:3]:  # 只显示前3个失败信息
+                            print(f"   - 第{fail_info['index']+1}条: {fail_info['error_type']} - {fail_info['error_message'][:50]}...")
+                        if fail_count > 3:
+                            print(f"   - 还有 {fail_count-3} 条失败...")
+                    
+                    # 如果没有成功的结果，跳过写入
+                    if not successful_results:
+                        print(f"❌ 第{batch_number}批没有可写入的成功结果")
+                        failed_batches.append({
+                            'batch': batch_number,
+                            'error': '批次内所有结果都解析失败',
+                            'note_count': len(current_batch),
+                            'success_count': 0,
+                            'fail_count': fail_count
+                        })
+                        continue
                     
                 except json.JSONDecodeError as e:
                     print(f"⚠️ 第{batch_number}批结果解析失败: {e}")
@@ -166,17 +217,16 @@ def run():
                     })
                     continue
                 
-                # ===== 立即数据库写入阶段 =====
-                print(f"💾 立即写入第{batch_number}批分析结果到数据库...")
+                # ===== 立即数据库写入阶段（只写入成功的结果）=====
+                print(f"💾 立即写入第{batch_number}批成功结果到数据库（{len(successful_results)} 条）...")
                 
-                # 将当前批次结果转换为JSON字符串
-                batch_json = json.dumps(batch_results, ensure_ascii=False)
-                print(f"📋 立即写入数据库 batch_json: {batch_json}")
-
+                # 将成功的结果转换为JSON字符串
+                success_batch_json = json.dumps(successful_results, ensure_ascii=False)
+                print(f"📋 立即写入数据库 success_batch_json: {success_batch_json}")
 
                 
                 # 立即写入数据库
-                write_result = db_writer._run(batch_json)
+                write_result = db_writer._run(success_batch_json)
                 
                 # 解析写入结果
                 if "成功写入" in write_result or "✅" in write_result:
@@ -185,12 +235,14 @@ def run():
                     if success_match:
                         batch_written_count = int(success_match.group(1))
                     else:
-                        batch_written_count = len(batch_results)  # 假设全部成功
+                        batch_written_count = len(successful_results)  # 假设全部成功
                     
                     total_written_results += batch_written_count
                     successful_batches.append({
                         'batch': batch_number,
                         'analyzed': len(batch_results),
+                        'successful_analyzed': len(successful_results),
+                        'failed_analyzed': len(failed_results),
                         'written': batch_written_count
                     })
                     print(f"✅ 第{batch_number}批数据库写入完成: {batch_written_count} 条")
@@ -200,10 +252,12 @@ def run():
                     failed_batches.append({
                         'batch': batch_number,
                         'error': '数据库写入失败',
-                        'note_count': len(current_batch)
+                        'note_count': len(current_batch),
+                        'success_count': len(successful_results),
+                        'fail_count': len(failed_results)
                     })
                 
-                print(f"📊 第{batch_number}批处理结果: AI分析 {len(batch_results)} 条 → 数据库写入 {batch_written_count} 条")
+                print(f"📊 第{batch_number}批处理结果: AI分析 {len(batch_results)} 条 → 成功 {len(successful_results)} 条 → 数据库写入 {batch_written_count} 条")
                     
             except Exception as e:
                 print(f"❌ 第{batch_number}批处理出错: {e}")

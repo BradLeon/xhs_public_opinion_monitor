@@ -26,17 +26,11 @@ class AdvancedBrandAnalyzer(BaseTool):
     def _run(self, content: str) -> str:
         """执行高级品牌分析"""
         try:
-            # 内容长度优化
-            #optimized_content = self._optimize_content_length(content)
-            
             # 构建分析提示词
-            # print(f"执行高级品牌分析 input content: {content}")
-
             prompt = self._build_analysis_prompt(content)
             
             # 调用LLM进行分析
             client = self._get_client()
-
             response = client.chat.completions.create(
                # model="deepseek/deepseek-r1-0528:free",  # 使用更稳定的模型
                 model = "google/gemini-2.5-flash-preview",
@@ -51,144 +45,67 @@ class AdvancedBrandAnalyzer(BaseTool):
             )
             
             analysis_result = response.choices[0].message.content
-            logger.info(f"[AdvancedBrandAnalyzer] LLM原始输出长度: {len(analysis_result)}")
-            #logger.info(f"[AdvancedBrandAnalyzer] LLM原始输出: {analysis_result}")
+            logger.info(f"[AdvancedBrandAnalyzer] LLM原始输出: {analysis_result}")
             
-            # 预处理：检查是否包含明显的异常内容
-            if self._contains_anomalous_content(analysis_result):
-                logger.warning("[AdvancedBrandAnalyzer] 检测到异常内容，尝试重新处理")
-                analysis_result = self._remove_anomalous_content(analysis_result)
-            #logger.info(f"[AdvancedBrandAnalyzer] after _remove_anomalous_content 输出: {analysis_result}")
+            # 尝试解析为JSON
+            parsed_result = self._parse_llm_result(analysis_result)
             
-            # 解析和验证结果
-            parsed_result = self._parse_and_validate_json(analysis_result)
-            #logger.info(f"[AdvancedBrandAnalyzer] after _parse_and_validate_json 输出: {parsed_result}")
-
-            
-            # 最终JSON验证
-            final_json = self._ensure_valid_json_output(parsed_result)
-            
-            #logger.info(f"[AdvancedBrandAnalyzer] after _ensure_valid_json_output 最终输出: {parsed_result}")
-
-            #logger.info(f"[AdvancedBrandAnalyzer] 最终输出: {final_json}")
-            
-            return final_json
+            # 如果解析成功，返回JSON字符串
+            if not parsed_result.get('_analysis_failed', False):
+                return json.dumps(parsed_result, ensure_ascii=False)
+            else:
+                # 解析失败，直接返回失败标记的JSON
+                return json.dumps(parsed_result, ensure_ascii=False)
             
         except Exception as e:
-            logger.error(f"高级品牌分析失败: {e}")
-            # 返回标准的空结果JSON
-            empty_result = {
-                "brand_list": [],
-                "spu_list": [],
-                "emotion_dict": {},
-                "evaluation_dict": {}
-            }
-            return json.dumps(empty_result, ensure_ascii=False)
+            logger.error(f"[AdvancedBrandAnalyzer] 分析过程异常: {e}")
+            # 返回异常标记的结果
+            error_result = self._get_failed_result("analysis_exception", str(e))
+            return json.dumps(error_result, ensure_ascii=False)
     
-    def _ensure_valid_json_output(self, parsed_result: Dict[str, Any]) -> str:
-        """确保输出是有效的JSON格式"""
+    def _parse_llm_result(self, llm_output: str) -> Dict[str, Any]:
+        """解析LLM输出，返回成功结果或失败标记"""
         try:
-            # 生成JSON字符串
-            json_output = json.dumps(parsed_result, ensure_ascii=False, separators=(',', ':'))
-            
-            # 验证JSON是否可以被正确解析
-            json.loads(json_output)
-            
-            logger.info(f"[AdvancedBrandAnalyzer] JSON格式验证成功，长度: {len(json_output)}")
-            return json_output
-            
-        except Exception as e:
-            logger.error(f"[AdvancedBrandAnalyzer] JSON格式验证失败: {e}")
-            # 返回标准的空结果
-            empty_result = {
-                "brand_list": [],
-                "spu_list": [],
-                "emotion_dict": {},
-                "evaluation_dict": {}
-            }
-            return json.dumps(empty_result, ensure_ascii=False, separators=(',', ':'))
-    
-    def _parse_and_validate_json(self, result: str) -> Dict[str, Any]:
-        """解析和验证LLM返回的分析结果"""
-        try:
-            logger.info(f"[AdvancedBrandAnalyzer] 开始解析LLM输出，长度: {len(result)}")
-            
-            # 尝试多种JSON提取方法
-            json_str = self._extract_json_from_text(result)
-            
+            # 提取JSON字符串
+            json_str = self._extract_json_string(llm_output)
             if not json_str:
-                logger.warning("[AdvancedBrandAnalyzer] 无法提取JSON，返回空结果")
-                return self._get_empty_result()
+                return self._get_failed_result("json_extraction_failed", "无法从LLM输出中提取JSON")
             
-            # 尝试解析JSON
+            # 解析JSON
             parsed = json.loads(json_str)
-            logger.info(f"[AdvancedBrandAnalyzer] JSON解析成功: {parsed}")
+            if not isinstance(parsed, dict):
+                return self._get_failed_result("invalid_format", "解析结果不是字典格式")
             
-            # 验证和标准化结果格式
-            standardized = self._standardize_result_format(parsed)
-            
-            # 清理和验证数据
-            cleaned = self._clean_analysis_result(standardized)
-            
-            return cleaned
+            # 标准化和清理格式
+            result = self._standardize_and_clean(parsed)
+            return result
             
         except json.JSONDecodeError as e:
-            logger.error(f"[AdvancedBrandAnalyzer] JSON解析失败: {e}")
-            logger.error(f"[AdvancedBrandAnalyzer] 问题位置: {e.pos if hasattr(e, 'pos') else 'unknown'}")
-            logger.error(f"[AdvancedBrandAnalyzer] 原始内容: {result}")
-            return self._get_empty_result()
+            return self._get_failed_result("json_decode_error", f"JSON解析错误: {str(e)}")
         except Exception as e:
-            logger.error(f"[AdvancedBrandAnalyzer] 其他解析错误: {e}")
-            return self._get_empty_result()
+            return self._get_failed_result("parsing_error", f"解析过程出错: {str(e)}")
     
-    def _extract_json_from_text(self, text: str) -> Optional[str]:
-        """从文本中提取JSON"""
-        # 清理文本，移除可能的干扰字符
+    def _extract_json_string(self, text: str) -> Optional[str]:
+        """从文本中提取JSON字符串（简化版）"""
         text = text.strip()
         
-        # 方法1: 直接检查是否为纯JSON（优先级最高）
+        # 方法1: 检查是否为纯JSON
         if text.startswith('{') and text.endswith('}'):
-            logger.info("[AdvancedBrandAnalyzer] 检测到纯JSON格式")
-            # 检查是否包含无关内容，如果有则尝试提取纯JSON部分
-            brace_count = 0
-            start_pos = 0
-            for i, char in enumerate(text):
-                if char == '{':
-                    if brace_count == 0:
-                        start_pos = i
-                    brace_count += 1
-                elif char == '}':
-                    brace_count -= 1
-                    if brace_count == 0:
-                        json_candidate = text[start_pos:i+1]
-                        try:
-                            # 验证是否为有效JSON
-                            json.loads(json_candidate)
-                            logger.info(f"[AdvancedBrandAnalyzer] 验证JSON有效，长度: {len(json_candidate)}")
-                            return json_candidate
-                        except:
-                            continue
-            return text  # 如果验证失败，返回原文本
+            return text
         
         # 方法2: 查找```json```代码块
         json_match = re.search(r'```json\s*(.*?)\s*```', text, re.DOTALL)
         if json_match:
-            logger.info("[AdvancedBrandAnalyzer] 找到```json```代码块")
-            candidate = json_match.group(1).strip()
-            # 进一步清理可能的干扰内容
-            candidate = self._clean_json_candidate(candidate)
-            return candidate
+            return json_match.group(1).strip()
         
-        # 方法3: 查找```代码块（不指定语言）
+        # 方法3: 查找```代码块
         code_match = re.search(r'```\s*(.*?)\s*```', text, re.DOTALL)
         if code_match:
             content = code_match.group(1).strip()
             if content.startswith('{') and content.endswith('}'):
-                logger.info("[AdvancedBrandAnalyzer] 找到```代码块中的JSON")
-                content = self._clean_json_candidate(content)
                 return content
         
-        # 方法4: 尝试从文本中提取第一个完整的JSON对象
+        # 方法4: 提取第一个完整的JSON对象
         brace_count = 0
         start_pos = -1
         for i, char in enumerate(text):
@@ -199,98 +116,51 @@ class AdvancedBrandAnalyzer(BaseTool):
             elif char == '}':
                 brace_count -= 1
                 if brace_count == 0 and start_pos != -1:
-                    json_candidate = text[start_pos:i+1]
-                    json_candidate = self._clean_json_candidate(json_candidate)
-                    logger.info(f"[AdvancedBrandAnalyzer] 找到JSON对象候选: {json_candidate[:100]}...")
-                    return json_candidate
+                    return text[start_pos:i+1]
         
-        logger.warning("[AdvancedBrandAnalyzer] 无法从文本中提取JSON")
         return None
     
-    def _clean_json_candidate(self, json_str: str) -> str:
-        """清理JSON候选字符串，移除可能的干扰内容"""
-        # 移除常见的干扰文本模式
-        patterns_to_remove = [
-            r'chimneys are a common feature.*?furnaces\.',
-            r'[A-Za-z\s]+are a common feature.*?\.',
-            r'[A-Za-z\s]+providing ventilation.*?\.',
-            # 添加更多可能的干扰模式
-            r'\n[A-Za-z\s]{20,}?\.',  # 长英文句子
-            r'[A-Z][a-z]+\s+[a-z\s]{10,}?\.',  # 英文句子模式
-        ]
-        
-        cleaned = json_str
-        for pattern in patterns_to_remove:
-            cleaned = re.sub(pattern, '', cleaned, flags=re.DOTALL | re.IGNORECASE)
-        
-        # 清理多余的空白和换行
-        cleaned = re.sub(r'\s+', ' ', cleaned)
-        cleaned = cleaned.strip()
-        
-        # 如果清理后的内容与原内容不同，记录日志
-        if cleaned != json_str:
-            logger.info(f"[AdvancedBrandAnalyzer] JSON清理: 原长度{len(json_str)} -> 清理后长度{len(cleaned)}")
-        
-        return cleaned
-    
-    def _standardize_result_format(self, parsed: Any) -> Dict[str, Any]:
-        """标准化解析结果格式"""
-        if not isinstance(parsed, dict):
-            logger.warning(f"[AdvancedBrandAnalyzer] 解析结果不是字典格式: {type(parsed)}")
-            return self._get_empty_result()
-        
-        # 确保所有必需字段存在
+    def _standardize_and_clean(self, parsed: Dict[str, Any]) -> Dict[str, Any]:
+        """标准化和清理解析结果"""
+        # 确保所有必需字段存在且类型正确
         result = {
-            "brand_list": parsed.get("brand_list", []),
-            "spu_list": parsed.get("spu_list", []),
-            "emotion_dict": parsed.get("emotion_dict", {}),
-            "evaluation_dict": parsed.get("evaluation_dict", {})
+            "brand_list": parsed.get("brand_list", []) if isinstance(parsed.get("brand_list"), list) else [],
+            "spu_list": parsed.get("spu_list", []) if isinstance(parsed.get("spu_list"), list) else [],
+            "emotion_dict": parsed.get("emotion_dict", {}) if isinstance(parsed.get("emotion_dict"), dict) else {},
+            "evaluation_dict": parsed.get("evaluation_dict", {}) if isinstance(parsed.get("evaluation_dict"), dict) else {}
         }
+        
+        # 标准化情感标签
+        emotion_mapping = {
+            "positive": "正向", "正面": "正向", "好": "正向",
+            "negative": "负向", "负面": "负向", "差": "负向", 
+            "neutral": "中立", "一般": "中立", "普通": "中立"
+        }
+        
+        for key, emotion in result["emotion_dict"].items():
+            if emotion in emotion_mapping:
+                result["emotion_dict"][key] = emotion_mapping[emotion]
+            elif emotion not in ["正向", "负向", "中立"]:
+                result["emotion_dict"][key] = "中立"
+        
+        # 确保评价词是列表
+        for key, evaluations in result["evaluation_dict"].items():
+            if not isinstance(evaluations, list):
+                result["evaluation_dict"][key] = [evaluations] if isinstance(evaluations, str) else []
         
         return result
     
-    def _get_empty_result(self) -> Dict[str, Any]:
-        """获取空的标准结果"""
+    def _get_failed_result(self, error_type: str, error_message: str) -> Dict[str, Any]:
+        """返回标记为失败的结果"""
         return {
             "brand_list": [],
             "spu_list": [],
             "emotion_dict": {},
-            "evaluation_dict": {}
+            "evaluation_dict": {},
+            "_analysis_failed": True,
+            "_error_type": error_type,
+            "_error_message": error_message
         }
-    
-    def _optimize_content_length(self, content: str, max_length: int = 8000) -> str:
-        """优化内容长度，避免上下文过长"""
-        if len(content) <= max_length:
-            return content
-            
-        logger.warning(f"[AdvancedBrandAnalyzer] 内容长度超限 ({len(content)} > {max_length})，进行截断")
-        
-        # 尝试解析JSON并智能截断
-        try:
-            data = json.loads(content)
-            if isinstance(data, dict) and 'notes' in data:
-                notes = data['notes']
-                truncated_notes = []
-                current_length = 0
-                
-                for note in notes:
-                    note_str = json.dumps(note, ensure_ascii=False)
-                    if current_length + len(note_str) > max_length - 500:  # 预留500字符
-                        break
-                    truncated_notes.append(note)
-                    current_length += len(note_str)
-                
-                data['notes'] = truncated_notes
-                logger.info(f"[AdvancedBrandAnalyzer] 智能截断保留 {len(truncated_notes)} 条笔记")
-                return json.dumps(data, ensure_ascii=False)
-                
-        except:
-            pass
-        
-        # 简单截断
-        truncated = content[:max_length]
-        logger.info(f"[AdvancedBrandAnalyzer] 简单截断到 {len(truncated)} 字符")
-        return truncated
     
     def _get_system_prompt(self) -> str:
         """获取系统提示词"""
@@ -360,120 +230,6 @@ class AdvancedBrandAnalyzer(BaseTool):
 
 请立即返回JSON结果："""
 
-    def _parse_analysis_result(self, result: str) -> Dict[str, Any]:
-        """解析LLM返回的分析结果"""
-        try:
-            # 尝试提取JSON部分
-            json_match = re.search(r'```json\s*(.*?)\s*```', result, re.DOTALL)
-            if json_match:
-                json_str = json_match.group(1)
-            else:
-                # 如果没有```json```包装，尝试直接解析
-                json_str = result.strip()
-            
-            parsed = json.loads(json_str)
-
-            # print(f"[AdvancedBrandAnalyzer._parse_analysis_result] 解析结果: {parsed}")
-            
-            # 验证和标准化结果格式
-            standardized = {
-                "brand_list": parsed.get("brand_list", []),
-                "spu_list": parsed.get("spu_list", []),
-                "emotion_dict": parsed.get("emotion_dict", {}),
-                "evaluation_dict": parsed.get("evaluation_dict", {})
-            }
-            
-            # 清理和验证数据
-            standardized = self._clean_analysis_result(standardized)
-            
-            return standardized
-            
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON解析失败: {e}, 原始结果: {result}")
-            # 返回空结果
-            return {
-                "brand_list": [],
-                "spu_list": [],
-                "emotion_dict": {},
-                "evaluation_dict": {}
-            }
-    
-    def _clean_analysis_result(self, result: Dict[str, Any]) -> Dict[str, Any]:
-        """清理和验证分析结果"""
-        # 确保列表类型
-        if not isinstance(result.get("brand_list"), list):
-            result["brand_list"] = []
-        
-        if not isinstance(result.get("spu_list"), list):
-            result["spu_list"] = []
-        
-        # 确保字典类型
-        if not isinstance(result.get("emotion_dict"), dict):
-            result["emotion_dict"] = {}
-            
-        if not isinstance(result.get("evaluation_dict"), dict):
-            result["evaluation_dict"] = {}
-        
-        # 标准化情感标签
-        emotion_mapping = {
-            "positive": "正向", "正面": "正向", "好": "正向", "推荐": "正向",
-            "negative": "负向", "负面": "负向", "差": "负向", "不推荐": "负向", 
-            "neutral": "中立", "一般": "中立", "普通": "中立"
-        }
-        
-        for key, emotion in result["emotion_dict"].items():
-            if emotion in emotion_mapping:
-                result["emotion_dict"][key] = emotion_mapping[emotion]
-            elif emotion not in ["正向", "负向", "中立"]:
-                result["emotion_dict"][key] = "中立"  # 默认为中立
-        
-        # 确保评价词是列表
-        for key, evaluations in result["evaluation_dict"].items():
-            if not isinstance(evaluations, list):
-                if isinstance(evaluations, str):
-                    result["evaluation_dict"][key] = [evaluations]
-                else:
-                    result["evaluation_dict"][key] = []
-        
-        return result
-    
-    def _contains_anomalous_content(self, text: str) -> bool:
-        """检测文本是否包含异常内容"""
-        anomalous_patterns = [
-            r'chimneys are a common feature',
-            r'providing ventilation for',
-            r'[A-Z][a-z]+\s+are a common feature',
-            r'buildings.*ventilation.*furnaces',
-            # 检测过长的英文句子（可能是幻觉）
-            r'[A-Za-z\s]{50,}\.', 
-        ]
-        
-        for pattern in anomalous_patterns:
-            if re.search(pattern, text, re.IGNORECASE):
-                logger.warning(f"[AdvancedBrandAnalyzer] 检测到异常模式: {pattern}")
-                return True
-        return False
-    
-    def _remove_anomalous_content(self, text: str) -> str:
-        """移除异常内容"""
-        # 更激进的清理策略
-        anomalous_patterns = [
-            r'chimneys are a common feature.*?furnaces\.',
-            r'[A-Za-z\s]+are a common feature.*?\.',
-            r'[A-Za-z\s]+providing ventilation.*?\.',
-            r'buildings.*?ventilation.*?furnaces.*?\.',
-            # 移除长英文句子
-            r'[A-Z][a-z\s]{30,}?\.',
-        ]
-        
-        cleaned = text
-        for pattern in anomalous_patterns:
-            old_length = len(cleaned)
-            cleaned = re.sub(pattern, '', cleaned, flags=re.DOTALL | re.IGNORECASE)
-            if len(cleaned) != old_length:
-                logger.info(f"[AdvancedBrandAnalyzer] 移除异常内容，长度从 {old_length} 变为 {len(cleaned)}")
-        
-        return cleaned
 
 # todo(liuchao), 这里做内容理解信息提取，需要区分内容类型是文字、图片还是视频。 不同的内容类型，需要不同的模型请求方式。
 class ContentSummarizer(BaseTool):
