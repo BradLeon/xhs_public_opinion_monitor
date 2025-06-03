@@ -39,6 +39,13 @@ class XhsPublicOpinionCrew():
 			temperature=0.1,
 	)
 
+	qwen_llm=LLM(
+			model="openrouter/qwen/qwen3-32b:free",
+			base_url="https://openrouter.ai/api/v1",
+			api_key=os.environ['OPENROUTER_API_KEY'],
+			temperature=0.1,
+	)
+
 	# If you would like to add tools to your agents, you can learn more about it here:
 	# https://docs.crewai.com/concepts/agents#agent-tools
 	@agent
@@ -46,7 +53,7 @@ class XhsPublicOpinionCrew():
 		"""内容分析师 - 负责内容分析"""
 		return Agent(
 			config=self.agents_config['content_analyst'],
-			llm=self.deepseek_r1_lm,
+			llm=self.qwen_llm,
 			tools=[AdvancedBrandAnalyzer()],
 			verbose=True
 		)

@@ -38,39 +38,53 @@ class AdvancedBrandAnalyzer(BaseTool):
             client = self._get_client()
 
             response = client.chat.completions.create(
+               # model="deepseek/deepseek-r1-0528:free",  # 使用更稳定的模型
                 model = "google/gemini-2.5-flash-preview",
-                #model="deepseek/deepseek-r1-0528:free",
                 messages=[
                     {"role": "system", "content": self._get_system_prompt()},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.1,
-                max_tokens=2000
+                temperature=0.0,  # 降低温度以减少幻觉
+                max_tokens=1500,   # 适当降低token数，避免冗长输出
+                top_p=0.9,        # 添加top_p参数进一步控制输出质量
+                frequency_penalty=0.1  # 减少重复内容
             )
             
             analysis_result = response.choices[0].message.content
-            #logger.info(f"[AdvancedBrandAnalyzer] LLM原始输出: {analysis_result}")
+            logger.info(f"[AdvancedBrandAnalyzer] LLM原始输出长度: {len(analysis_result)}")
+            logger.info(f"[AdvancedBrandAnalyzer] LLM原始输出: {analysis_result}")
+            
+            # 预处理：检查是否包含明显的异常内容
+            if self._contains_anomalous_content(analysis_result):
+                logger.warning("[AdvancedBrandAnalyzer] 检测到异常内容，尝试重新处理")
+                analysis_result = self._remove_anomalous_content(analysis_result)
+            logger.info(f"[AdvancedBrandAnalyzer] after _remove_anomalous_content 输出: {analysis_result}")
             
             # 解析和验证结果
             parsed_result = self._parse_and_validate_json(analysis_result)
+            logger.info(f"[AdvancedBrandAnalyzer] after _parse_and_validate_json 输出: {parsed_result}")
+
             
             # 最终JSON验证
             final_json = self._ensure_valid_json_output(parsed_result)
             
-            #logger.info(f"[AdvancedBrandAnalyzer] 最终输出: {final_json}")
-            
+            logger.info(f"[AdvancedBrandAnalyzer] after _ensure_valid_json_output 最终输出: {final_json}")
+
             return final_json
             
         except Exception as e:
-            logger.error(f"高级品牌分析失败: {e}")
-            # 返回标准的空结果JSON
-            empty_result = {
+            logger.error(f"[AdvancedBrandAnalyzer] 高级品牌分析失败: {e}")
+            # 返回标记失败的结果，包含错误信息
+            error_result = {
                 "brand_list": [],
                 "spu_list": [],
                 "emotion_dict": {},
-                "evaluation_dict": {}
+                "evaluation_dict": {},
+                "_analysis_failed": True,
+                "_error_message": str(e),
+                "_error_type": "analysis_exception"
             }
-            return json.dumps(empty_result, ensure_ascii=False)
+            return json.dumps(error_result, ensure_ascii=False)
     
     def _ensure_valid_json_output(self, parsed_result: Dict[str, Any]) -> str:
         """确保输出是有效的JSON格式"""
@@ -86,14 +100,9 @@ class AdvancedBrandAnalyzer(BaseTool):
             
         except Exception as e:
             logger.error(f"[AdvancedBrandAnalyzer] JSON格式验证失败: {e}")
-            # 返回标准的空结果
-            empty_result = {
-                "brand_list": [],
-                "spu_list": [],
-                "emotion_dict": {},
-                "evaluation_dict": {}
-            }
-            return json.dumps(empty_result, ensure_ascii=False, separators=(',', ':'))
+            # 返回标记失败的结果
+            error_result = self._get_failed_result("json_validation_error", f"JSON格式验证失败: {str(e)}")
+            return json.dumps(error_result, ensure_ascii=False, separators=(',', ':'))
     
     def _parse_and_validate_json(self, result: str) -> Dict[str, Any]:
         """解析和验证LLM返回的分析结果"""
@@ -104,8 +113,8 @@ class AdvancedBrandAnalyzer(BaseTool):
             json_str = self._extract_json_from_text(result)
             
             if not json_str:
-                logger.warning("[AdvancedBrandAnalyzer] 无法提取JSON，返回空结果")
-                return self._get_empty_result()
+                logger.warning("[AdvancedBrandAnalyzer] 无法提取JSON，返回失败标记")
+                return self._get_failed_result("json_extraction_failed", "无法从LLM输出中提取有效JSON")
             
             # 尝试解析JSON
             parsed = json.loads(json_str)
@@ -123,28 +132,59 @@ class AdvancedBrandAnalyzer(BaseTool):
             logger.error(f"[AdvancedBrandAnalyzer] JSON解析失败: {e}")
             logger.error(f"[AdvancedBrandAnalyzer] 问题位置: {e.pos if hasattr(e, 'pos') else 'unknown'}")
             logger.error(f"[AdvancedBrandAnalyzer] 原始内容: {result}")
-            return self._get_empty_result()
+            return self._get_failed_result("json_decode_error", f"JSON解析错误: {str(e)}")
         except Exception as e:
             logger.error(f"[AdvancedBrandAnalyzer] 其他解析错误: {e}")
-            return self._get_empty_result()
+            return self._get_failed_result("parsing_error", f"解析过程出错: {str(e)}")
     
     def _extract_json_from_text(self, text: str) -> Optional[str]:
         """从文本中提取JSON"""
-        # 方法1: 查找```json```代码块
+        # 清理文本，移除可能的干扰字符
+        text = text.strip()
+        
+        # 方法1: 直接检查是否为纯JSON（优先级最高）
+        if text.startswith('{') and text.endswith('}'):
+            logger.info("[AdvancedBrandAnalyzer] 检测到纯JSON格式")
+            # 检查是否包含无关内容，如果有则尝试提取纯JSON部分
+            brace_count = 0
+            start_pos = 0
+            for i, char in enumerate(text):
+                if char == '{':
+                    if brace_count == 0:
+                        start_pos = i
+                    brace_count += 1
+                elif char == '}':
+                    brace_count -= 1
+                    if brace_count == 0:
+                        json_candidate = text[start_pos:i+1]
+                        try:
+                            # 验证是否为有效JSON
+                            json.loads(json_candidate)
+                            logger.info(f"[AdvancedBrandAnalyzer] 验证JSON有效，长度: {len(json_candidate)}")
+                            return json_candidate
+                        except:
+                            continue
+            return text  # 如果验证失败，返回原文本
+        
+        # 方法2: 查找```json```代码块
         json_match = re.search(r'```json\s*(.*?)\s*```', text, re.DOTALL)
         if json_match:
             logger.info("[AdvancedBrandAnalyzer] 找到```json```代码块")
-            return json_match.group(1).strip()
+            candidate = json_match.group(1).strip()
+            # 进一步清理可能的干扰内容
+            candidate = self._clean_json_candidate(candidate)
+            return candidate
         
-        # 方法2: 查找```代码块（不指定语言）
+        # 方法3: 查找```代码块（不指定语言）
         code_match = re.search(r'```\s*(.*?)\s*```', text, re.DOTALL)
         if code_match:
             content = code_match.group(1).strip()
             if content.startswith('{') and content.endswith('}'):
                 logger.info("[AdvancedBrandAnalyzer] 找到```代码块中的JSON")
+                content = self._clean_json_candidate(content)
                 return content
         
-        # 方法3: 查找第一个完整的JSON对象
+        # 方法4: 尝试从文本中提取第一个完整的JSON对象
         brace_count = 0
         start_pos = -1
         for i, char in enumerate(text):
@@ -156,23 +196,44 @@ class AdvancedBrandAnalyzer(BaseTool):
                 brace_count -= 1
                 if brace_count == 0 and start_pos != -1:
                     json_candidate = text[start_pos:i+1]
+                    json_candidate = self._clean_json_candidate(json_candidate)
                     logger.info(f"[AdvancedBrandAnalyzer] 找到JSON对象候选: {json_candidate[:100]}...")
                     return json_candidate
         
-        # 方法4: 尝试整个文本（去除前后空白）
-        text_stripped = text.strip()
-        if text_stripped.startswith('{') and text_stripped.endswith('}'):
-            logger.info("[AdvancedBrandAnalyzer] 使用整个文本作为JSON")
-            return text_stripped
-        
         logger.warning("[AdvancedBrandAnalyzer] 无法从文本中提取JSON")
         return None
+    
+    def _clean_json_candidate(self, json_str: str) -> str:
+        """清理JSON候选字符串，移除可能的干扰内容"""
+        # 移除常见的干扰文本模式
+        patterns_to_remove = [
+            r'chimneys are a common feature.*?furnaces\.',
+            r'[A-Za-z\s]+are a common feature.*?\.',
+            r'[A-Za-z\s]+providing ventilation.*?\.',
+            # 添加更多可能的干扰模式
+            r'\n[A-Za-z\s]{20,}?\.',  # 长英文句子
+            r'[A-Z][a-z]+\s+[a-z\s]{10,}?\.',  # 英文句子模式
+        ]
+        
+        cleaned = json_str
+        for pattern in patterns_to_remove:
+            cleaned = re.sub(pattern, '', cleaned, flags=re.DOTALL | re.IGNORECASE)
+        
+        # 清理多余的空白和换行
+        cleaned = re.sub(r'\s+', ' ', cleaned)
+        cleaned = cleaned.strip()
+        
+        # 如果清理后的内容与原内容不同，记录日志
+        if cleaned != json_str:
+            logger.info(f"[AdvancedBrandAnalyzer] JSON清理: 原长度{len(json_str)} -> 清理后长度{len(cleaned)}")
+        
+        return cleaned
     
     def _standardize_result_format(self, parsed: Any) -> Dict[str, Any]:
         """标准化解析结果格式"""
         if not isinstance(parsed, dict):
             logger.warning(f"[AdvancedBrandAnalyzer] 解析结果不是字典格式: {type(parsed)}")
-            return self._get_empty_result()
+            return self._get_failed_result("invalid_result_format", "解析结果不是有效的字典格式")
         
         # 确保所有必需字段存在
         result = {
@@ -184,14 +245,21 @@ class AdvancedBrandAnalyzer(BaseTool):
         
         return result
     
-    def _get_empty_result(self) -> Dict[str, Any]:
-        """获取空的标准结果"""
+    def _get_failed_result(self, error_type: str, error_message: str) -> Dict[str, Any]:
+        """返回标记为失败的结果"""
         return {
             "brand_list": [],
             "spu_list": [],
             "emotion_dict": {},
-            "evaluation_dict": {}
+            "evaluation_dict": {},
+            "_analysis_failed": True,
+            "_error_type": error_type,
+            "_error_message": error_message
         }
+    
+    def _get_empty_result(self) -> Dict[str, Any]:
+        """返回空结果（保留兼容性）"""
+        return self._get_failed_result("empty_result", "分析结果为空")
     
     def _optimize_content_length(self, content: str, max_length: int = 8000) -> str:
         """优化内容长度，避免上下文过长"""
@@ -231,6 +299,8 @@ class AdvancedBrandAnalyzer(BaseTool):
         """获取系统提示词"""
         return """你是一名专业的品牌分析和情感识别专家，特别擅长分析中文社交媒体内容。
 
+**重要：你必须严格按照要求格式返回JSON，不得添加任何额外的文字、解释或其他内容！**
+
 你的任务是分析小红书笔记内容，准确识别以下信息：
 
 1. **品牌识别**: 识别文本中提及的所有品牌名称，包括：
@@ -246,7 +316,6 @@ class AdvancedBrandAnalyzer(BaseTool):
    - 花西子同心锁口红
    - 珀莱雅源力水乳
 
-
 3. **情感分析**: 判断用户对每个品牌/产品的情感倾向：
    - 正向：喜欢、推荐、效果好等
    - 负向：不喜欢、不推荐、效果差等  
@@ -254,8 +323,11 @@ class AdvancedBrandAnalyzer(BaseTool):
 
 4. **评价词提取**: 提取用户对品牌/产品的具体评价词汇
 
-请以JSON格式返回分析结果，严格按照以下格式：
-```json
+**输出格式要求：**
+- 只返回纯JSON格式，不要包含```json```标记
+- 不要添加任何解释文字或其他内容
+- 严格按照以下JSON结构：
+
 {
   "brand_list": ["品牌1", "品牌2"],
   "spu_list": ["spu1", "spu2"], 
@@ -267,24 +339,29 @@ class AdvancedBrandAnalyzer(BaseTool):
     "品牌1": ["评价词1", "评价词2"],
     "spu1": ["评价词1", "评价词2"]
   }
-}
-```"""
+}"""
 
     def _build_analysis_prompt(self, content: str) -> str:
         """构建分析提示词"""
-        return f"""请分析以下小红书笔记内容：
+        return f"""请分析以下小红书笔记内容，严格按照要求格式返回JSON结果：
 
+【待分析内容】
 {content}
 
-请仔细识别其中提及的品牌和产品，分析用户的情感倾向，并提取关键评价词汇。
-
-注意事项：
-1. 仔细区分品牌名称和产品类型
-2. 注意用户的真实情感态度，不要被表面词汇误导
+【分析要求】
+1. 仔细识别其中提及的品牌和产品
+2. 分析用户的情感倾向，注意真实情感态度
 3. 提取最能代表用户观点的关键词汇
-4. 如果没有明确提及品牌或产品，对应字段可以为空列表
+4. 如果没有明确提及品牌或产品，对应字段使用空列表
 
-请严格按照JSON格式返回结果。"""
+【关键要求】
+- 只返回纯JSON格式，不要任何额外文字
+- 不要使用代码块标记（如```json```）
+- 不要添加解释或说明
+- JSON必须是有效格式，可以被直接解析
+- 情感值只能是："正向"、"负向"、"中立"
+
+请立即返回JSON结果："""
 
     def _parse_analysis_result(self, result: str) -> Dict[str, Any]:
         """解析LLM返回的分析结果"""
@@ -363,6 +440,44 @@ class AdvancedBrandAnalyzer(BaseTool):
         
         return result
     
+    def _contains_anomalous_content(self, text: str) -> bool:
+        """检测文本是否包含异常内容"""
+        anomalous_patterns = [
+            r'chimneys are a common feature',
+            r'providing ventilation for',
+            r'[A-Z][a-z]+\s+are a common feature',
+            r'buildings.*ventilation.*furnaces',
+            # 检测过长的英文句子（可能是幻觉）
+            r'[A-Za-z\s]{50,}\.', 
+        ]
+        
+        for pattern in anomalous_patterns:
+            if re.search(pattern, text, re.IGNORECASE):
+                logger.warning(f"[AdvancedBrandAnalyzer] 检测到异常模式: {pattern}")
+                return True
+        return False
+    
+    def _remove_anomalous_content(self, text: str) -> str:
+        """移除异常内容"""
+        # 更激进的清理策略
+        anomalous_patterns = [
+            r'chimneys are a common feature.*?furnaces\.',
+            r'[A-Za-z\s]+are a common feature.*?\.',
+            r'[A-Za-z\s]+providing ventilation.*?\.',
+            r'buildings.*?ventilation.*?furnaces.*?\.',
+            # 移除长英文句子
+            r'[A-Z][a-z\s]{30,}?\.',
+        ]
+        
+        cleaned = text
+        for pattern in anomalous_patterns:
+            old_length = len(cleaned)
+            cleaned = re.sub(pattern, '', cleaned, flags=re.DOTALL | re.IGNORECASE)
+            if len(cleaned) != old_length:
+                logger.info(f"[AdvancedBrandAnalyzer] 移除异常内容，长度从 {old_length} 变为 {len(cleaned)}")
+        
+        return cleaned
+
 # todo(liuchao), 这里做内容理解信息提取，需要区分内容类型是文字、图片还是视频。 不同的内容类型，需要不同的模型请求方式。
 class ContentSummarizer(BaseTool):
     """内容摘要生成工具"""

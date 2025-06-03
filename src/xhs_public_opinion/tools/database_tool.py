@@ -140,35 +140,26 @@ class DatabaseReaderTool(BaseTool):
     name: str = "database_reader"
     description: str = "从Supabase数据库读取小红书笔记数据，支持指定读取数量限制"
     
-    def _run(self, limit: int = 10, batch_size: str = "") -> str:
+    def _run(self,  batch_size: str = "") -> str:
         """读取未处理的笔记数据"""
         try:
-            # 如果提供了batch_size参数，优先使用
-            if batch_size and batch_size.isdigit():
-                limit = int(batch_size)
-            
-            # 确保limit不超过最大安全值
-            max_safe_limit = 20  # 设置最大安全限制
-            if limit > max_safe_limit:
-                limit = max_safe_limit
-                logger.warning(f"批次大小超过安全限制，已调整为 {max_safe_limit}")
-            
-            logger.info(f"[DatabaseReaderTool] 准备读取 {limit} 条未处理的笔记数据")
+      
+            logger.info(f"[DatabaseReaderTool] 准备读取 {batch_size} 条未处理的笔记数据")
             
             db = SupabaseDatabase()
-            notes = db.get_unprocessed_notes(limit)
+            notes = db.get_unprocessed_notes(batch_size)
             
             if not notes:
                 return "没有找到未处理的笔记数据"
             
             result = {
                 "total_count": len(notes),
-                "requested_limit": limit,
+                "requested_limit": batch_size,
                 "notes": notes
             }
 
             res = json.dumps(result, ensure_ascii=False, indent=2)
-            # logger.info(f"[DatabaseReaderTool] 读取数据成功: {res}")
+            logger.info(f"[DatabaseReaderTool] 读取数据成功，实际获取 {len(notes)} 条记录")
 
             return res
             
