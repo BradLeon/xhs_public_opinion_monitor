@@ -1,0 +1,47 @@
+content_analysis_task:
+  description: >
+    对传入的小红书笔记数据进行全面的智能内容分析，包括品牌识别、产品分析和情感评价。
+    使用advanced_brand_analyzer工具对每条笔记进行深度分析。
+    
+    **数据来源**：
+    传入的数据是一个Json字符串，'notes'字段是一个List数组，它的内容是{notes}, 数组中每个元素是一个笔记信息Dict。
+    每个笔记基本信息包括：'note_id'表示笔记ID, 'title'表示笔记标题, 'desc'表示笔记文字内容,
+     'image_list'是一个List数组，每个元素是一个配图image_url, 'video_url'表示视频链接如果非视频笔记则为空字符串。
+
+    
+    **重要注意事项**：
+    - 必须处理'notes'中的所有笔记数据
+    - 每条笔记都需要调用advanced_brand_analyzer工具进行分析
+    - 最终输出必须包含所有笔记的分析结果
+    - 输出格式必须是标准JSON数组，不能有任何markdown包装
+    
+  expected_output: >
+    标准JSON数组格式，包含notes中所有笔记的分析结果：
+    [
+      {
+        "note_id": "笔记ID",
+        "analysis_result": {
+          "brand_list": ["品牌1", "品牌2"],
+          "spu_list": ["产品1", "产品2"], 
+          "emotion_dict": {"品牌1": "正向", "品牌2": "负向"},
+          "evaluation_dict": {"品牌1": ["好用", "推荐"], "品牌2": ["一般"]}
+        }
+      },
+      {
+        "note_id": "另一条笔记ID",
+        "analysis_result": {
+          "brand_list": ["品牌3"],
+          "spu_list": ["产品3"], 
+          "emotion_dict": {"品牌3": "中立"},
+          "evaluation_dict": {"品牌3": ["还行"]}
+        }
+      }
+    ]
+    
+    **输出要求**：
+    - 严格的JSON数组格式，以[开始，以]结束
+    - 不允许任何markdown包装（如```json```）
+    - 不允许任何解释性文字
+    - 必须包含notes中所有笔记的分析结果
+    - 如果某条笔记没有识别到品牌或产品，对应字段使用空数组[]或空对象{}
+  agent: content_analyst
