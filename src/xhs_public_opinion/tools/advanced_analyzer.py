@@ -13,6 +13,7 @@ class AdvancedBrandAnalyzer(BaseTool):
     """基于LLM的高级品牌分析工具"""
     name: str = "advanced_brand_analyzer"
     description: str = "使用大语言模型进行高级的品牌识别、产品分析和情感判断"
+    #todo, 暂时缺乏对视频内容的提取和理解能力。
     
     def _get_client(self):
         """延迟初始化OpenAI客户端"""
