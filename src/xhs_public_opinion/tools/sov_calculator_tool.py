@@ -129,7 +129,7 @@ class SOVCalculatorTool(BaseTool):
                 if len(brands) == 0:
                     continue
 
-                logger.info(f"[SOVCalculatorTool] rank: {row['rank']}，brands:  {brands}")
+                #logger.info(f"[SOVCalculatorTool] rank: {row['rank']}，brands:  {brands}")
         
                 # 为每个品牌创建一条记录
                 for brand in brands:
@@ -162,7 +162,7 @@ class SOVCalculatorTool(BaseTool):
                 expanded_df[col] = pd.to_numeric(expanded_df[col], errors='coerce').fillna(0)
         
         logger.info(f"[SOVCalculatorTool] 展开后的品牌记录: {len(expanded_df)} 条，涉及品牌: {expanded_df['brand'].nunique()} 个")
-        logger.info(f"[SOVCalculatorTool] 展开后的品牌记录: {expanded_df.head(10)}")
+        #ogger.info(f"[SOVCalculatorTool] 展开后的品牌记录: {expanded_df.head(10)}")
 
         return expanded_df
     

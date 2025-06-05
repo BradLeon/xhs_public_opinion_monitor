@@ -6,6 +6,8 @@ import os
 from xhs_public_opinion.tools import (
     AdvancedBrandAnalyzer,
     # todo， 增加一个视频内容ASR的tool，将视频内容转文字。并将文字内容一并输入给Analyzer
+	 MultimodalBrandAnalyzer,
+    # 使用Google Gemini Pro的多模态分析器，支持文本、图片和视频内容的智能分析
 )
 
 # 加载环境变量
@@ -17,7 +19,7 @@ load_dotenv()
 
 @CrewBase
 class XhsPublicOpinionCrew():
-	"""小红书公共舆情分析Crew（简化版本：专注于AI内容分析）"""
+	"""小红书公共舆情分析Crew（多模态版本：支持文本+图片+视频的智能分析）"""
 
 	# Learn more about YAML configuration files here:
 	# Agents: https://docs.crewai.com/concepts/agents#yaml-configuration-recommended
@@ -50,17 +52,17 @@ class XhsPublicOpinionCrew():
 	# https://docs.crewai.com/concepts/agents#agent-tools
 	@agent
 	def content_analyst(self) -> Agent:
-		"""内容分析师 - 负责内容分析"""
+		"""多模态内容分析师 - 负责文本、图片、视频内容综合分析"""
 		return Agent(
 			config=self.agents_config['content_analyst'],
 			llm=self.qwen_llm,
-			tools=[AdvancedBrandAnalyzer()],
+			tools=[MultimodalBrandAnalyzer()],
 			verbose=True
 		)
 
 	@task
 	def content_analysis_task(self) -> Task:
-		"""内容分析任务"""
+		"""多模态内容分析任务"""
 		return Task(
 			config=self.tasks_config['content_analysis_task'],
 			agent=self.content_analyst()
@@ -68,7 +70,7 @@ class XhsPublicOpinionCrew():
 
 	@crew
 	def crew(self) -> Crew:
-		"""创建并配置crew（简化版本：只包含AI内容分析）"""
+		"""创建并配置crew（多模态版本：AI内容分析+图片+视频理解）"""
 		return Crew(
 			agents=self.agents,
 			tasks=self.tasks,

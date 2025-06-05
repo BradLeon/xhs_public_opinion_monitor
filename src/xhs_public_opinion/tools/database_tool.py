@@ -43,12 +43,12 @@ class SupabaseDatabase:
         self.client: Client = create_client(self.url, self.key)
     
     def get_unprocessed_notes(self, limit: int = 10) -> List[Dict[str, Any]]:
-        """获取未处理的笔记数据"""
+        """获取未处理的笔记数据（brand_list为null或空列表字符串）"""
         try:
             response = (
                 self.client.table("xhs_note")
                 .select("*")
-                .is_("brand_list", "null")
+                .or_("brand_list.is.null,brand_list.eq.[]")
                 .limit(limit)
                 .execute()
             )

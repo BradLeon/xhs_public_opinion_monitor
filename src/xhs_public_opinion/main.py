@@ -6,6 +6,7 @@ import json
 import re
 from datetime import datetime
 from dotenv import load_dotenv
+from typing import List
 import logging
 
 
@@ -14,7 +15,8 @@ from xhs_public_opinion.tools import (
     DatabaseReaderTool,
     DatabaseWriterTool,
     DataMergerTool,
-    SOVCalculatorTool
+    SOVCalculatorTool,
+    MultimodalBrandAnalyzer
 )
 from xhs_public_opinion.config.batch_config import BatchConfig
 
@@ -47,7 +49,7 @@ def run():
         _print_startup_info(current_time)
         
         # 阶段1：批量数据库读取
-        '''
+        
         notes_data = _read_database_batch(db_batch_size)
         if not notes_data:
             return _create_empty_result("no_data", "没有找到未处理的笔记数据")
@@ -60,7 +62,7 @@ def run():
         
         # 结果统计和总结
         _print_final_statistics(stats, total_notes_count, ai_batch_size)
-        '''
+        
 
         # 阶段3：汇总搜索结果底表
         _basic_data_merger(keyword="丰盈蓬松洗发水")
@@ -431,6 +433,167 @@ def test():
         print("详细错误信息请查看日志")
         return None
 
+def run_multimodal():
+    """
+    运行多模态分析（支持图片和视频内容的智能分析）
+    """
+    # 环境检查
+    if not _check_environment():
+        return None
+    
+    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    
+    try:
+        print("🎬 开始多模态内容分析...")
+        print(f"📅 分析时间: {current_time}")
+        print("="*60)
+        
+        # 初始化多模态分析器
+        multimodal_analyzer = MultimodalBrandAnalyzer()
+        if not multimodal_analyzer.client:
+            print("❌ 多模态分析器初始化失败，请检查OPENROUTER_API_KEY")
+            return None
+        
+        # 读取包含多模态内容的数据
+        db_reader = DatabaseReaderTool()
+        raw_data = db_reader._run(batch_size=100)
+        
+        if not raw_data or "没有找到未处理的笔记数据" in raw_data:
+            print("⚠️ 没有找到未处理的数据")
+            return None
+        
+        # 解析数据并分类处理
+        notes_data = json.loads(raw_data)
+        all_notes = notes_data.get('notes', [])
+        
+        multimodal_stats = _process_multimodal_content(all_notes, multimodal_analyzer)
+        
+        # 输出统计结果
+        _print_multimodal_statistics(multimodal_stats, current_time)
+
+        # 阶段3：汇总搜索结果底表
+        _basic_data_merger(keyword="丰盈蓬松洗发水")
+        # 阶段4：计算SOV
+        _sov_calculator(keyword="丰盈蓬松洗发水")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ 多模态分析过程中出现错误: {e}")
+        print("详细错误信息请查看日志")
+        return None
+
+def _process_multimodal_content(all_notes: list, analyzer) -> dict:
+    """处理多模态内容"""
+    # 按内容类型分类
+    text_only = []
+    with_images = []
+    with_videos = []
+    complex_content = []
+    
+    for note in all_notes:
+        has_images = note.get('image_list') and len(note.get('image_list', [])) > 0
+        has_video = note.get('type') == 'video' and note.get('video_url')
+        
+   
+        if has_video:
+            with_videos.append(note)
+        elif has_images:
+            with_images.append(note)
+        else:
+            text_only.append(note)
+    
+    print(f"📊 内容分类:")
+    print(f"   📝 纯文本: {len(text_only)} 条")
+    print(f"   🖼️  含图片: {len(with_images)} 条")
+    print(f"   🎬 含视频: {len(with_videos)} 条")
+    print(f"   🎭 复合内容: {len(complex_content)} 条")
+    
+    # 分别处理各类内容
+    stats = {
+        'text_processed': 0,
+        'image_processed': 0,
+        'video_processed': 0,
+        'complex_processed': 0,
+        'total_successful': 0,
+        'total_failed': 0
+    }
+    
+    # 处理视频内容
+    if with_videos:
+        print(f"\n🎬 处理视频内容 ({len(with_videos)} 条)...")
+        processed, failed = _batch_process_notes(with_videos, analyzer, "video")
+        stats['video_processed'] = processed
+        stats['total_successful'] += processed
+        stats['total_failed'] += failed
+    
+    # 处理图片内容
+    if with_images:
+        print(f"\n🖼️ 处理图片内容 ({len(with_images)} 条)...")
+        processed, failed = _batch_process_notes(with_images, analyzer, "image")
+        stats['image_processed'] = processed
+        stats['total_successful'] += processed
+        stats['total_failed'] += failed
+    
+    if text_only:
+        print(f"\n📝 处理纯文本内容 ({len(text_only)} 条)...")
+        processed, failed = _batch_process_notes(text_only, analyzer, "text")
+        stats['text_processed'] = processed
+        stats['total_successful'] += processed
+        stats['total_failed'] += failed
+    
+    return stats
+
+def _batch_process_notes(notes: list, analyzer: MultimodalBrandAnalyzer, content_type: str) -> tuple:
+    """批量处理笔记, 理解+写入"""
+    if not notes:
+        return 0, 0
+    
+    successful_results = []
+    failed_count = 0
+
+    db_writer = DatabaseWriterTool()
+    
+    for i, note in enumerate(notes):
+        try:
+            # 使用多模态分析器
+            result = analyzer._run(json.dumps(note, ensure_ascii=False), content_type)
+            parsed_result = json.loads(result)
+            
+            if parsed_result.get('_analysis_failed', False):
+                failed_count += 1
+                print(f"   ⚠️ 第{i+1}条{content_type}内容分析失败")
+            else:
+    
+                parsed_result['note_id'] = note['note_id']
+                successful_results.append(parsed_result)
+                print(f"   ✅ 第{i+1}条{content_type}内容分析成功")
+
+                # 为了防止中间失败导致解析结果丢失，每处理一个记录就写入一个。
+                write_result = db_writer._run(list[json.dumps(parsed_result, ensure_ascii=False)])
+                if "成功写入" in write_result:
+                    print(f"   💾 {content_type}内容写入完成, note_id: {note['note_id']}")
+                else:
+                    print(f"   ❌ {content_type}内容写入失败, note_id: {note['note_id']}")
+
+        except Exception as e:
+            failed_count += 1
+            print(f"   ❌ 第{i+1}条{content_type}内容处理异常: {e}")
+    
+
+    return len(successful_results), failed_count
+
+def _print_multimodal_statistics(stats: dict, current_time: str):
+    """打印多模态处理统计"""
+    print(f"\n📊 多模态处理完成统计:")
+    print(f"   🎭 复合内容: {stats['complex_processed']} 条")
+    print(f"   🎬 视频内容: {stats['video_processed']} 条")
+    print(f"   🖼️  图片内容: {stats['image_processed']} 条")
+    print(f"   ✅ 总成功: {stats['total_successful']} 条")
+    print(f"   ❌ 总失败: {stats['total_failed']} 条")
+    print(f"\n⏰ 完成时间: {current_time}")
+    print("="*60)
+
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         command = sys.argv[1]
@@ -440,6 +603,8 @@ if __name__ == "__main__":
             replay()
         elif command == "test":
             test()
+        elif command == "multimodal":
+            run_multimodal()
         else:
             print("未知命令，使用 run() 执行默认分析")
             run()
