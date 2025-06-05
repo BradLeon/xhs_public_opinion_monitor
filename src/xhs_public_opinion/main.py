@@ -12,7 +12,9 @@ import logging
 from xhs_public_opinion.crew import XhsPublicOpinionCrew
 from xhs_public_opinion.tools import (
     DatabaseReaderTool,
-    DatabaseWriterTool
+    DatabaseWriterTool,
+    DataMergerTool,
+    SOVCalculatorTool
 )
 from xhs_public_opinion.config.batch_config import BatchConfig
 
@@ -45,6 +47,7 @@ def run():
         _print_startup_info(current_time)
         
         # 阶段1：批量数据库读取
+        '''
         notes_data = _read_database_batch(db_batch_size)
         if not notes_data:
             return _create_empty_result("no_data", "没有找到未处理的笔记数据")
@@ -57,8 +60,15 @@ def run():
         
         # 结果统计和总结
         _print_final_statistics(stats, total_notes_count, ai_batch_size)
-        
-        return _create_success_result(total_notes_count, ai_batch_size, stats)
+        '''
+
+        # 阶段3：汇总搜索结果底表
+        _basic_data_merger(keyword="丰盈蓬松洗发水")
+        # 阶段4：计算SOV
+        _sov_calculator(keyword="丰盈蓬松洗发水")
+
+        return True
+  
         
     except Exception as e:
         print(f"❌ 执行过程中出现错误: {e}")
@@ -340,6 +350,23 @@ def _create_success_result(total_notes_count: int, ai_batch_size: int, stats: di
         },
         "timestamp": datetime.now().isoformat()
     }
+
+def _basic_data_merger(keyword: str) -> bool:
+    """构造基础数据集"""
+    data_merger_tool = DataMergerTool()
+    res = data_merger_tool._run(keyword)
+    if "数据拼接失败" in res:
+        return False
+    return True
+
+def _sov_calculator(keyword: str) -> bool:
+    """计算SOV"""
+    print("📖 阶段2: 计算SOV...")
+    sov_calculator_tool = SOVCalculatorTool()
+    res = sov_calculator_tool._run(keyword, method="simple")
+    if "计算失败" in res:
+        return False
+    return True
 
 def train():
     """

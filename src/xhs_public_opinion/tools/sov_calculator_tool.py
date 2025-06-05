@@ -8,6 +8,9 @@ import logging
 from datetime import datetime
 import glob
 
+# 导入品牌标准化工具
+from .brand_normalizer import get_brand_normalizer
+
 # 配置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -101,24 +104,46 @@ class SOVCalculatorTool(BaseTool):
         for _, row in df_valid.iterrows():
             try:
                 brand_list_str = row['brand_list']
+
                 if pd.isna(brand_list_str) or brand_list_str == '':
                     continue
                 
-                # 解析品牌列表
+                # 解析品牌列表 - 处理可能的双重JSON编码
                 if isinstance(brand_list_str, str):
                     brands = json.loads(brand_list_str)
+                    
+                    # 处理双重编码的情况
+                    if isinstance(brands, str):
+                        try:
+                            brands = json.loads(brands)
+                            logger.debug(f"双重解码成功: {brands}")
+                        except (json.JSONDecodeError, TypeError):
+                            logger.warning(f"双重解码失败: {brands}")
+                            continue
+                            
                 else:
                     brands = brand_list_str
                 
                 if not isinstance(brands, list):
                     continue
-                
+                if len(brands) == 0:
+                    continue
+
+                logger.info(f"[SOVCalculatorTool] rank: {row['rank']}，brands:  {brands}")
+        
                 # 为每个品牌创建一条记录
                 for brand in brands:
                     if brand and brand.strip():
-                        record = row.copy()
-                        record['brand'] = brand.strip()
-                        expanded_records.append(record)
+                        # 标准化品牌名
+                        brand_normalizer = get_brand_normalizer()
+                        normalized_brand = brand_normalizer.normalize_brand_name(brand.strip())
+                        
+                        if normalized_brand:  # 只有标准化后不为空的品牌名才处理
+                            # 将pandas Series转换为字典，然后添加brand字段
+                            record = row.to_dict()
+                            record['brand'] = normalized_brand
+                            record['original_brand'] = brand.strip()  # 保留原始品牌名用于调试
+                            expanded_records.append(record)
                         
             except (json.JSONDecodeError, TypeError) as e:
                 logger.warning(f"解析品牌列表失败: {e}, 数据: {row['brand_list']}")
@@ -137,11 +162,13 @@ class SOVCalculatorTool(BaseTool):
                 expanded_df[col] = pd.to_numeric(expanded_df[col], errors='coerce').fillna(0)
         
         logger.info(f"[SOVCalculatorTool] 展开后的品牌记录: {len(expanded_df)} 条，涉及品牌: {expanded_df['brand'].nunique()} 个")
-        
+        logger.info(f"[SOVCalculatorTool] 展开后的品牌记录: {expanded_df.head(10)}")
+
         return expanded_df
     
     def _calculate_simple_sov(self, df: pd.DataFrame) -> Dict[str, Any]:
         """计算简单SOV（基于笔记数量）"""
+
         brand_counts = df['brand'].value_counts()
         total_mentions = len(df)
         

@@ -17,15 +17,20 @@ class DataMergerTool(BaseTool):
     name: str = "data_merger"
     description: str = "根据指定关键词，将xhs_search_result和xhs_note表根据note_id连接，生成CSV宽表文件"
     
-    def __init__(self):
-        super().__init__()
+    # 声明Pydantic字段
+    url: Optional[str] = None
+    key: Optional[str] = None
+    client: Optional[Client] = None
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.url = os.getenv("SEO_SUPABASE_URL")
         self.key = os.getenv("SEO_SUPABASE_ANON_KEY")
         
         if not self.url or not self.key:
             raise ValueError("请确保设置了 SEO_SUPABASE_URL 和 SEO_SUPABASE_ANON_KEY 环境变量")
         
-        self.client: Client = create_client(self.url, self.key)
+        self.client = create_client(self.url, self.key)
     
     def _run(self, keyword: str, output_dir: str = "data/export") -> str:
         """
@@ -165,12 +170,32 @@ class DataMergerTool(BaseTool):
                 
                 # 数据状态标识
                 'has_note_detail': bool(note_detail),
-                'has_brand_info': bool(note_detail.get('brand_list')),
+                'has_brand_info': self._has_valid_brand_info(note_detail.get('brand_list')),
             }
             
             merged_data.append(merged_record)
         
         return merged_data
+    
+    def _has_valid_brand_info(self, brand_list) -> bool:
+        """判断是否有有效的品牌信息"""
+        if not brand_list:  # None, '', False, 0 等falsy值
+            return False
+        
+        # 如果是字符串，尝试解析为JSON
+        if isinstance(brand_list, str):
+            try:
+                parsed_list = json.loads(brand_list)
+                return isinstance(parsed_list, list) and len(parsed_list) > 0
+            except (json.JSONDecodeError, TypeError):
+                return False
+        
+        # 如果已经是列表，检查是否非空
+        if isinstance(brand_list, list):
+            return len(brand_list) > 0
+        
+        # 其他情况返回False
+        return False
     
     def _save_to_csv(self, data: List[Dict], keyword: str, output_dir: str) -> str:
         """保存数据到CSV文件"""
