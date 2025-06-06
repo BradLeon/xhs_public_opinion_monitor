@@ -4,10 +4,8 @@ from dotenv import load_dotenv
 import os
 
 from xhs_public_opinion.tools import (
-    AdvancedBrandAnalyzer,
-    # todo， 增加一个视频内容ASR的tool，将视频内容转文字。并将文字内容一并输入给Analyzer
 	 MultimodalBrandAnalyzer,
-    # 使用Google Gemini Pro的多模态分析器，支持文本、图片和视频内容的智能分析
+    # 使用Qwen-VL的多模态分析器，支持文本、图片和视频内容的智能分析
 )
 
 # 加载环境变量

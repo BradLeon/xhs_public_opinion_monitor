@@ -50,19 +50,19 @@ class MultimodalBrandAnalyzer(BaseTool):
             
             # test
             # logger.info(f"[MultimodalBrandAnalyzer] type of note_data: {type(note_data)}")
-
+            logger.info(f"[MultimodalBrandAnalyzer] content_type: {content_type}")
             logger.info(f"[MultimodalBrandAnalyzer] note_data: {note_data}")
-            
+        
             # 构建多模态消息
             messages = self._build_multimodal_messages(note_data, content_type)
             
-            # 调用OpenRouter Gemini Pro
-            result = self._call_gemini_pro(messages)
+            # 调用Qwen-VL
+            result = self._call_LLM(messages)
             logger.info(f"[MultimodalBrandAnalyzer] raw result: {result}")
             
             # 解析和标准化结果
             parsed_result = self._parse_llm_result(result)
-            logger.info(f"[MultimodalBrandAnalyzer] parsed result: {parsed_result}")
+            # logger.info(f"[MultimodalBrandAnalyzer] parsed result: {parsed_result}")
 
             return json.dumps(parsed_result, ensure_ascii=False)
             
@@ -112,7 +112,7 @@ class MultimodalBrandAnalyzer(BaseTool):
         
         # 添加图片内容
         if content_type == 'image':
-            image_list = note_data.get('image_list', [])
+            image_list = note_data.get('image_list', '').split(',')
             if isinstance(image_list, list) and image_list:
                 for image_url in image_list[:5]:  # 限制最多5张图片
                     if image_url and isinstance(image_url, str):
@@ -122,6 +122,7 @@ class MultimodalBrandAnalyzer(BaseTool):
                                 "url": image_url
                             }
                         })
+            logger.info(f"[MultimodalBrandAnalyzer] image_list: {image_list}")
         
         messages = [
             {
@@ -134,7 +135,7 @@ class MultimodalBrandAnalyzer(BaseTool):
             }
         ]
         
-        # logger.info(f"[MultimodalBrandAnalyzer] user messages: {content_parts}")
+        #logger.info(f"[MultimodalBrandAnalyzer] user messages: {content_parts}")
 
         return messages
     
@@ -146,8 +147,8 @@ class MultimodalBrandAnalyzer(BaseTool):
         prompt = f"""请综合分析以下小红书笔记的多模态内容，包括文本、图片和视频信息：
 
 【文本内容】
-标题: {title}
-文字: {desc}
+【标题】: {title}
+【文字】: {desc}
 
 
 【分析要求】
@@ -162,7 +163,7 @@ class MultimodalBrandAnalyzer(BaseTool):
         
         return prompt
     
-    def _call_gemini_pro(self, messages: List[Dict[str, Any]]) -> str:
+    def _call_LLM(self, messages: List[Dict[str, Any]]) -> str:
         """调用通义千问VL模型"""
         try:
             completion = self.client.chat.completions.create(
