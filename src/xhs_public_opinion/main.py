@@ -16,7 +16,8 @@ from xhs_public_opinion.tools import (
     DatabaseWriterTool,
     DataMergerTool,
     SOVCalculatorTool,
-    MultimodalBrandAnalyzer
+    MultimodalBrandAnalyzer,
+    SingleNoteWriterTool
 )
 from xhs_public_opinion.config.batch_config import BatchConfig
 
@@ -545,43 +546,47 @@ def _process_multimodal_content(all_notes: list, analyzer) -> dict:
     return stats
 
 def _batch_process_notes(notes: list, analyzer: MultimodalBrandAnalyzer, content_type: str) -> tuple:
-    """批量处理笔记, 理解+写入"""
+    """批量处理笔记，每条笔记分析后立即写入"""
     if not notes:
         return 0, 0
     
-    successful_results = []
+    successful_count = 0
     failed_count = 0
 
-    db_writer = DatabaseWriterTool()
+    db_writer = SingleNoteWriterTool()
     
     for i, note in enumerate(notes):
         try:
+            print(f"   🔄 处理第{i+1}条{content_type}内容...")
+            
             # 使用多模态分析器
             result = analyzer._run(json.dumps(note, ensure_ascii=False), content_type)
             parsed_result = json.loads(result)
             
             if parsed_result.get('_analysis_failed', False):
                 failed_count += 1
-                print(f"   ⚠️ 第{i+1}条{content_type}内容分析失败")
+                print(f"   ⚠️ 第{i+1}条{content_type}内容分析失败: {parsed_result.get('_error_message', '未知错误')}")
+                continue
+            
+            # 添加笔记ID
+            parsed_result['note_id'] = note['note_id']
+            
+            # 立即写入数据库
+            write_result = db_writer._run(parsed_result)
+            
+            if "✅" in write_result:
+                successful_count += 1
+                print(f"   ✅ 第{i+1}条{content_type}内容处理完成")
             else:
-    
-                parsed_result['note_id'] = note['note_id']
-                successful_results.append(parsed_result)
-                print(f"   ✅ 第{i+1}条{content_type}内容分析成功")
-
-                # 为了防止中间失败导致解析结果丢失，每处理一个记录就写入一个。
-                write_result = db_writer._run(list[json.dumps(parsed_result, ensure_ascii=False)])
-                if "成功写入" in write_result:
-                    print(f"   💾 {content_type}内容写入完成, note_id: {note['note_id']}")
-                else:
-                    print(f"   ❌ {content_type}内容写入失败, note_id: {note['note_id']}")
-
+                failed_count += 1
+                print(f"   ❌ 第{i+1}条{content_type}内容写入失败: {write_result}")
+                
         except Exception as e:
             failed_count += 1
             print(f"   ❌ 第{i+1}条{content_type}内容处理异常: {e}")
+            logger.error(f"处理异常: {str(e)}", exc_info=True)
     
-
-    return len(successful_results), failed_count
+    return successful_count, failed_count
 
 def _print_multimodal_statistics(stats: dict, current_time: str):
     """打印多模态处理统计"""

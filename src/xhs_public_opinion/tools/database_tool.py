@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 import logging
 import re
 from dotenv import load_dotenv
+from datetime import datetime
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -373,3 +374,38 @@ class DatabaseWriterTool(BaseTool):
         except Exception as e:
             logger.error(f"[DatabaseWriterTool] JSON修复过程出错: {e}")
             return None
+
+class SingleNoteWriterTool(BaseTool):
+    """单条笔记分析结果写入工具"""
+    name: str = "single_note_writer"
+    description: str = "将单条笔记的分析结果写入数据库"
+
+    def __init__(self):
+        super().__init__()
+
+    def _run(self, result_dict: Dict) -> str:
+        """
+        写入单条笔记的分析结果
+        :param analysis_result: 单条笔记的分析结果（JSON字符串）
+        :return: 写入结果描述
+        """
+        logger.info("[SingleNoteWriterTool] 开始写入单条分析结果")
+
+        db = SupabaseDatabase()
+        
+        # 准备写入数据
+        note_id = result_dict.get('note_id')
+        if not note_id:
+            return "❌ 缺少note_id字段"
+        
+        # 写入数据库
+        success = db.update_analysis_result(note_id, result_dict)
+        if success:
+            logger.info(f"[SingleNoteWriterTool] ✅ 成功写入笔记分析结果: {note_id}")
+            return f"✅ 成功写入笔记分析结果: {note_id}"
+        else:
+            error_msg = f"数据库写入失败: {str(e)}"
+            logger.error(f"[SingleNoteWriterTool] ❌ {error_msg}")
+            return f"❌ {error_msg}"
+        
+    

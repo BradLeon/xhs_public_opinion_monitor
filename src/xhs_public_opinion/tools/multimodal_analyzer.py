@@ -109,7 +109,6 @@ class MultimodalBrandAnalyzer(BaseTool):
                     "url": video_url
                 }
             })
-            logger.info(f"[MultimodalBrandAnalyzer] 添加视频URL: {video_url}")
         
         # 添加图片内容
         if content_type == 'image':
@@ -135,7 +134,7 @@ class MultimodalBrandAnalyzer(BaseTool):
             }
         ]
         
-        logger.info(f"[MultimodalBrandAnalyzer] user messages: {content_parts}")
+        # logger.info(f"[MultimodalBrandAnalyzer] user messages: {content_parts}")
 
         return messages
     
