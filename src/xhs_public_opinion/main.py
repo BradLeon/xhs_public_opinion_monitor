@@ -14,7 +14,8 @@ from xhs_public_opinion.tools import (
     DataMergerTool,
     SOVCalculatorTool,
     MultimodalBrandAnalyzer,
-    SingleNoteWriterTool
+    SingleNoteWriterTool,
+    BrandSentimentExtractorTool
 )
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,7 @@ def run():
     流程：数据库读取 → AI内容分析 → 数据库写入
     """
     try:
+        '''
         # 环境检查
         if not _check_environment():
             return None
@@ -119,11 +121,14 @@ def run():
         print(f"📈 成功率: {(success_count/total_notes*100):.1f}%")
         print(f"⏰ 完成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print("="*60)
-        
+        '''
+        success_count = 1
+
         # 后续处理
         if success_count > 0:
-            _basic_data_merger(keyword="丰盈蓬松洗发水")
+            merged_data_path = _basic_data_merger(keyword="丰盈蓬松洗发水")
             _sov_calculator(keyword="丰盈蓬松洗发水")
+            _extract_brand_sentiment(keyword="丰盈蓬松洗发水", brand="Living Proof", csv_input_path=merged_data_path)  # 可以指定特定品牌或留空提取所有品牌
         
         return True
         
@@ -132,11 +137,12 @@ def run():
         print("详细错误信息请查看日志")
         return None
 
-def _basic_data_merger(keyword: str) -> bool:
+def _basic_data_merger(keyword: str) -> str:
     """构造基础数据集"""
     data_merger_tool = DataMergerTool()
     res = data_merger_tool._run(keyword)
-    return "数据拼接失败" not in res
+    return res
+
 
 def _sov_calculator(keyword: str) -> bool:
     """计算SOV"""
@@ -144,6 +150,18 @@ def _sov_calculator(keyword: str) -> bool:
     sov_calculator_tool = SOVCalculatorTool()
     res = sov_calculator_tool._run(keyword, method="simple")
     return "计算失败" not in res
+
+def _extract_brand_sentiment(keyword: str, brand: str = "", csv_input_path: str = "") -> bool:
+    """提取品牌情感分析结果"""
+    print(f"💝 提取品牌情感分析 - keyword: {keyword}, brand: {brand or '所有品牌'}...")
+    brand_sentiment_extractor = BrandSentimentExtractorTool()
+    res = brand_sentiment_extractor._run(keyword=keyword, brand=brand, csv_input_path=csv_input_path)
+    
+    if "处理失败" in res:
+        print(f"   ❌ 品牌情感分析失败: {res}")
+        return False
+    else:
+        return True
 
 def train():
     """训练crew模型"""

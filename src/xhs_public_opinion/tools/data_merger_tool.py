@@ -7,6 +7,8 @@ from supabase import create_client, Client
 import logging
 from datetime import datetime
 from dotenv import load_dotenv
+from .brand_normalizer import get_brand_normalizer
+from .brand_normalizer import BrandNormalizer
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -21,6 +23,7 @@ class DataMergerTool(BaseTool):
     url: Optional[str] = None
     key: Optional[str] = None
     client: Optional[Client] = None
+    brand_normalizer: Optional[BrandNormalizer] = None
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -31,6 +34,9 @@ class DataMergerTool(BaseTool):
             raise ValueError("请确保设置了 SEO_SUPABASE_URL 和 SEO_SUPABASE_ANON_KEY 环境变量")
         
         self.client = create_client(self.url, self.key)
+        
+        # 初始化品牌标准化器
+        self.brand_normalizer = get_brand_normalizer()
     
     def _run(self, keyword: str, output_dir: str = "data/export") -> str:
         """
@@ -72,8 +78,7 @@ class DataMergerTool(BaseTool):
             
             # 6. 生成统计报告
             stats = self._generate_statistics(merged_data, keyword)
-            
-            return f"""✅ 数据拼接完成！
+            logger.info(f"""✅ 数据拼接完成！
 
 📊 统计信息:
 - 关键词: {keyword}
@@ -89,7 +94,10 @@ class DataMergerTool(BaseTool):
 - 涉及品牌数: {stats['unique_brands']} 个
 - 平均搜索排名: {stats['avg_rank']:.2f}
 
-文件已保存到: {csv_path}"""
+文件已保存到: {csv_path}""")
+            
+
+            return csv_path
             
         except Exception as e:
             logger.error(f"[DataMergerTool] 数据拼接失败: {e}")
@@ -139,6 +147,9 @@ class DataMergerTool(BaseTool):
             note_id = search_record.get('note_id')
             note_detail = note_dict.get(note_id, {})
             
+            # 对品牌相关字段进行标准化处理
+            normalized_brand_data = self._normalize_brand_fields(note_detail)
+            
             # 合并记录
             merged_record = {
                 # 搜索结果字段
@@ -163,19 +174,102 @@ class DataMergerTool(BaseTool):
                 'collected_count': note_detail.get('collected_count'),
                 'comment_count': note_detail.get('comment_count'),
                 'share_count': note_detail.get('share_count'),
-                'brand_list': note_detail.get('brand_list'),
+                
+                # 使用标准化后的品牌数据
+                'brand_list': normalized_brand_data['brand_list'],
                 'spu_list': note_detail.get('spu_list'),
-                'emotion_dict': note_detail.get('emotion_dict'),
-                'evaluation_dict': note_detail.get('evaluation_dict'),
+                'emotion_dict': normalized_brand_data['emotion_dict'],
+                'evaluation_dict': normalized_brand_data['evaluation_dict'],
                 
                 # 数据状态标识
                 'has_note_detail': bool(note_detail),
-                'has_brand_info': self._has_valid_brand_info(note_detail.get('brand_list')),
+                'has_brand_info': self._has_valid_brand_info(normalized_brand_data['brand_list']),
             }
             
             merged_data.append(merged_record)
         
         return merged_data
+    
+    def _normalize_brand_fields(self, note_detail: Dict) -> Dict:
+        """标准化品牌相关字段"""
+        result = {
+            'brand_list': note_detail.get('brand_list'),
+            'emotion_dict': note_detail.get('emotion_dict'),
+            'evaluation_dict': note_detail.get('evaluation_dict')
+        }
+        
+        if not note_detail:
+            return result
+        
+        try:
+            # 1. 标准化品牌列表
+            brand_list = self._parse_json_field(note_detail.get('brand_list'))
+            if isinstance(brand_list, list) and brand_list:
+                normalized_brands = []
+                brand_mapping = {}  # 原始品牌名 -> 标准化品牌名的映射
+                
+                for original_brand in brand_list:
+                    if original_brand and isinstance(original_brand, str):
+                        normalized_brand = self.brand_normalizer.normalize_brand_name(original_brand.strip())
+                        if normalized_brand:
+                            normalized_brands.append(normalized_brand)
+                            brand_mapping[original_brand] = normalized_brand
+                
+                # 去重但保持顺序
+                seen = set()
+                unique_normalized_brands = []
+                for brand in normalized_brands:
+                    if brand not in seen:
+                        unique_normalized_brands.append(brand)
+                        seen.add(brand)
+                
+                result['brand_list'] = unique_normalized_brands
+                
+                # 2. 更新情感字典中的品牌名
+                emotion_dict = self._parse_json_field(note_detail.get('emotion_dict'))
+                if isinstance(emotion_dict, dict) and emotion_dict:
+                    normalized_emotion_dict = {}
+                    for original_brand, emotion_info in emotion_dict.items():
+                        # 查找对应的标准化品牌名
+                        normalized_brand = brand_mapping.get(original_brand, 
+                                                           self.brand_normalizer.normalize_brand_name(original_brand))
+                        if normalized_brand:
+                            normalized_emotion_dict[normalized_brand] = emotion_info
+                    result['emotion_dict'] = normalized_emotion_dict
+                
+                # 3. 更新评价字典中的品牌名
+                evaluation_dict = self._parse_json_field(note_detail.get('evaluation_dict'))
+                if isinstance(evaluation_dict, dict) and evaluation_dict:
+                    normalized_evaluation_dict = {}
+                    for original_brand, evaluation_info in evaluation_dict.items():
+                        # 查找对应的标准化品牌名
+                        normalized_brand = brand_mapping.get(original_brand,
+                                                           self.brand_normalizer.normalize_brand_name(original_brand))
+                        if normalized_brand:
+                            normalized_evaluation_dict[normalized_brand] = evaluation_info
+                    result['evaluation_dict'] = normalized_evaluation_dict
+                
+                # 记录标准化结果
+                if brand_mapping:
+                    original_brands = list(brand_mapping.keys())
+                    normalized_brands = list(brand_mapping.values())
+                    logger.debug(f"[DataMergerTool] 品牌标准化: {original_brands} -> {normalized_brands}")
+            
+        except Exception as e:
+            logger.warning(f"[DataMergerTool] 品牌标准化失败: {e}")
+            # 如果标准化失败，返回原始数据
+            pass
+        
+        return result
+    
+    def _parse_json_field(self, field_value: Any) -> Any:
+        """安全解析JSON字段"""
+        if isinstance(field_value, str):
+            try:
+                return json.loads(field_value)
+            except (json.JSONDecodeError, TypeError):
+                return field_value
+        return field_value
     
     def _has_valid_brand_info(self, brand_list) -> bool:
         """判断是否有有效的品牌信息"""
