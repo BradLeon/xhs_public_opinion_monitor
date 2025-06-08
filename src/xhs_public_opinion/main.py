@@ -126,9 +126,10 @@ def run():
 
         # 后续处理
         if success_count > 0:
-            merged_data_path = _basic_data_merger(keyword="丰盈蓬松洗发水")
-            _sov_calculator(keyword="丰盈蓬松洗发水")
-            _extract_brand_sentiment(keyword="丰盈蓬松洗发水", brand="Living Proof", csv_input_path=merged_data_path)  # 可以指定特定品牌或留空提取所有品牌
+            for keyword in ["丰盈蓬松洗发水", "缕灵", "livingproof"]:
+                merged_data_path = _basic_data_merger(keyword=keyword)
+                #_sov_calculator(keyword=keyword)
+                #_extract_brand_sentiment(keyword=keyword, brand="Living Proof", csv_input_path=merged_data_path)  # 可以指定特定品牌或留空提取所有品牌
         
         return True
         

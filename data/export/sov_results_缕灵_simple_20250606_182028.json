@@ -1,0 +1,271 @@
+{
+  "method": "simple",
+  "total_mentions": 138,
+  "unique_brands": 43,
+  "sov_data": [
+    {
+      "brand": "Living Proof",
+      "mention_count": 86,
+      "sov_percentage": 62.32,
+      "rank": 1
+    },
+    {
+      "brand": "Kérastase",
+      "mention_count": 6,
+      "sov_percentage": 4.35,
+      "rank": 2
+    },
+    {
+      "brand": "雅诗兰黛",
+      "mention_count": 3,
+      "sov_percentage": 2.17,
+      "rank": 3
+    },
+    {
+      "brand": "丝芙兰",
+      "mention_count": 2,
+      "sov_percentage": 1.45,
+      "rank": 4
+    },
+    {
+      "brand": "兰蔻",
+      "mention_count": 2,
+      "sov_percentage": 1.45,
+      "rank": 5
+    },
+    {
+      "brand": "诗裴丝",
+      "mention_count": 2,
+      "sov_percentage": 1.45,
+      "rank": 6
+    },
+    {
+      "brand": "除障香",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 7
+    },
+    {
+      "brand": "每日圆满",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 8
+    },
+    {
+      "brand": "Lush",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 9
+    },
+    {
+      "brand": "玉肌",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 10
+    },
+    {
+      "brand": "马林狗子",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 11
+    },
+    {
+      "brand": "縷靈",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 12
+    },
+    {
+      "brand": "艾天然",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 13
+    },
+    {
+      "brand": "美宝莲",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 14
+    },
+    {
+      "brand": "Clotoo",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 15
+    },
+    {
+      "brand": "露得清",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 16
+    },
+    {
+      "brand": "馥绿德雅",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 17
+    },
+    {
+      "brand": "悦诗风吟",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 18
+    },
+    {
+      "brand": "彼得罗夫",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 19
+    },
+    {
+      "brand": "香奈儿",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 20
+    },
+    {
+      "brand": "卡普里岛",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 21
+    },
+    {
+      "brand": "娇兰",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 22
+    },
+    {
+      "brand": "番茄小说",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 23
+    },
+    {
+      "brand": "郑云龙",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 24
+    },
+    {
+      "brand": "欧莱雅卡尼尔",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 25
+    },
+    {
+      "brand": "赛逸",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 26
+    },
+    {
+      "brand": "暖暖nikki",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 27
+    },
+    {
+      "brand": "测试品牌a",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 28
+    },
+    {
+      "brand": "测试品牌b",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 29
+    },
+    {
+      "brand": "批量测试品牌1a",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 30
+    },
+    {
+      "brand": "批量测试品牌1b",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 31
+    },
+    {
+      "brand": "批量测试品牌2a",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 32
+    },
+    {
+      "brand": "批量测试品牌2b",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 33
+    },
+    {
+      "brand": "批量测试品牌3a",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 34
+    },
+    {
+      "brand": "批量测试品牌3b",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 35
+    },
+    {
+      "brand": "半亩花田",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 36
+    },
+    {
+      "brand": "Shiseido",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 37
+    },
+    {
+      "brand": "L'oréal",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 38
+    },
+    {
+      "brand": "Longtake",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 39
+    },
+    {
+      "brand": "Off&Relax",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 40
+    },
+    {
+      "brand": "La Mer",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 41
+    },
+    {
+      "brand": "娇韵诗",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 42
+    },
+    {
+      "brand": "澳尔滨",
+      "mention_count": 1,
+      "sov_percentage": 0.72,
+      "rank": 43
+    }
+  ],
+  "metadata": {
+    "keyword": "缕灵",
+    "method": "simple",
+    "calculated_at": "2025-06-06T18:20:28.481248",
+    "tool_version": "1.0"
+  }
+}

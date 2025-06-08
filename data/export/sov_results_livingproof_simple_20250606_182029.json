@@ -1,0 +1,325 @@
+{
+  "method": "simple",
+  "total_mentions": 161,
+  "unique_brands": 52,
+  "sov_data": [
+    {
+      "brand": "Living Proof",
+      "mention_count": 95,
+      "sov_percentage": 59.01,
+      "rank": 1
+    },
+    {
+      "brand": "Kérastase",
+      "mention_count": 4,
+      "sov_percentage": 2.48,
+      "rank": 2
+    },
+    {
+      "brand": "Off&Relax",
+      "mention_count": 4,
+      "sov_percentage": 2.48,
+      "rank": 3
+    },
+    {
+      "brand": "Olaplex",
+      "mention_count": 4,
+      "sov_percentage": 2.48,
+      "rank": 4
+    },
+    {
+      "brand": "L'oréal",
+      "mention_count": 3,
+      "sov_percentage": 1.86,
+      "rank": 5
+    },
+    {
+      "brand": "馥绿德雅",
+      "mention_count": 3,
+      "sov_percentage": 1.86,
+      "rank": 6
+    },
+    {
+      "brand": "Gencbeauty",
+      "mention_count": 2,
+      "sov_percentage": 1.24,
+      "rank": 7
+    },
+    {
+      "brand": "Dove",
+      "mention_count": 2,
+      "sov_percentage": 1.24,
+      "rank": 8
+    },
+    {
+      "brand": "Tatcha",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 9
+    },
+    {
+      "brand": "Blancha",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 10
+    },
+    {
+      "brand": "Hourglass",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 11
+    },
+    {
+      "brand": "且初",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 12
+    },
+    {
+      "brand": "Ren Clean Skincare",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 13
+    },
+    {
+      "brand": "Revlon",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 14
+    },
+    {
+      "brand": "Murad",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 15
+    },
+    {
+      "brand": "联合利华",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 16
+    },
+    {
+      "brand": "Kate Somerville",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 17
+    },
+    {
+      "brand": "Diptyque",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 18
+    },
+    {
+      "brand": "Befe",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 19
+    },
+    {
+      "brand": "Selsun",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 20
+    },
+    {
+      "brand": "Fapopro",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 21
+    },
+    {
+      "brand": "Ulike",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 22
+    },
+    {
+      "brand": "Lg",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 23
+    },
+    {
+      "brand": "Mq",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 24
+    },
+    {
+      "brand": "Thera Breath",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 25
+    },
+    {
+      "brand": "L'occitane",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 26
+    },
+    {
+      "brand": "卡詩",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 27
+    },
+    {
+      "brand": "Lush",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 28
+    },
+    {
+      "brand": "Leonor Greyl",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 29
+    },
+    {
+      "brand": "郑云龙",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 30
+    },
+    {
+      "brand": "兰蔻",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 31
+    },
+    {
+      "brand": "美宝莲",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 32
+    },
+    {
+      "brand": "Maternatura",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 33
+    },
+    {
+      "brand": "Noah",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 34
+    },
+    {
+      "brand": "欧舒丹",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 35
+    },
+    {
+      "brand": "蜂花",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 36
+    },
+    {
+      "brand": "威娜",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 37
+    },
+    {
+      "brand": "K18",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 38
+    },
+    {
+      "brand": "Epres",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 39
+    },
+    {
+      "brand": "Philipb",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 40
+    },
+    {
+      "brand": "Niucoco",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 41
+    },
+    {
+      "brand": "丝芙兰",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 42
+    },
+    {
+      "brand": "Sudtana",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 43
+    },
+    {
+      "brand": "Aesop",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 44
+    },
+    {
+      "brand": "欧莱雅卡尼尔",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 45
+    },
+    {
+      "brand": "诗裴丝",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 46
+    },
+    {
+      "brand": "Longtake",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 47
+    },
+    {
+      "brand": "Oribe",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 48
+    },
+    {
+      "brand": "Vitabrid",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 49
+    },
+    {
+      "brand": "Ouai",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 50
+    },
+    {
+      "brand": "Sachajuan",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 51
+    },
+    {
+      "brand": "Christophe Robin",
+      "mention_count": 1,
+      "sov_percentage": 0.62,
+      "rank": 52
+    }
+  ],
+  "metadata": {
+    "keyword": "livingproof",
+    "method": "simple",
+    "calculated_at": "2025-06-06T18:20:29.557543",
+    "tool_version": "1.0"
+  }
+}

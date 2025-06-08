@@ -59,31 +59,34 @@ class DataMergerTool(BaseTool):
             
             logger.info(f"[DataMergerTool] 获取到 {len(search_results)} 条搜索结果")
             
-            # 2. 提取所有note_id
-            note_ids = [result['note_id'] for result in search_results if result.get('note_id')]
-            unique_note_ids = list(set(note_ids))  # 去重
+            # 2. 合并多账户排序结果
+            merged_rankings = self._merge_multi_account_rankings(search_results)
+            logger.info(f"[DataMergerTool] 合并后得到 {len(merged_rankings)} 个唯一note_id的排序")
             
-            logger.info(f"[DataMergerTool] 提取到 {len(unique_note_ids)} 个唯一的note_id")
+            # 3. 提取所有note_id
+            note_ids = list(merged_rankings.keys())
             
-            # 3. 从xhs_note表获取对应的笔记详情
-            note_details = self._get_note_details(unique_note_ids)
+            logger.info(f"[DataMergerTool] 提取到 {len(note_ids)} 个唯一的note_id")
+            
+            # 4. 从xhs_note表获取对应的笔记详情
+            note_details = self._get_note_details(note_ids)
             
             logger.info(f"[DataMergerTool] 获取到 {len(note_details)} 条笔记详情")
             
-            # 4. 数据拼接
-            merged_data = self._merge_data(search_results, note_details)
+            # 5. 数据拼接（使用合并后的排序结果）
+            merged_data = self._merge_data_with_rankings(merged_rankings, note_details, keyword)
             
-            # 5. 生成CSV文件
+            # 6. 生成CSV文件
             csv_path = self._save_to_csv(merged_data, keyword, output_dir)
             
-            # 6. 生成统计报告
+            # 7. 生成统计报告
             stats = self._generate_statistics(merged_data, keyword)
             logger.info(f"""✅ 数据拼接完成！
 
 📊 统计信息:
 - 关键词: {keyword}
-- 搜索结果记录: {len(search_results)} 条
-- 唯一笔记数: {len(unique_note_ids)} 个
+- 原始搜索结果记录: {len(search_results)} 条
+- 合并后唯一笔记数: {len(note_ids)} 个
 - 成功匹配: {stats['matched_count']} 条
 - 未匹配: {stats['unmatched_count']} 条
 - 输出文件: {csv_path}
@@ -92,7 +95,8 @@ class DataMergerTool(BaseTool):
 - 总记录数: {len(merged_data)}
 - 包含品牌信息的记录: {stats['with_brand_count']} 条
 - 涉及品牌数: {stats['unique_brands']} 个
-- 平均搜索排名: {stats['avg_rank']:.2f}
+- 平均合并排名: {stats['avg_merged_rank']:.2f}
+- 涉及搜索账户数: {stats['account_count']} 个
 
 文件已保存到: {csv_path}""")
             
@@ -136,27 +140,157 @@ class DataMergerTool(BaseTool):
             logger.error(f"获取笔记详情失败: {e}")
             return []
     
-    def _merge_data(self, search_results: List[Dict], note_details: List[Dict]) -> List[Dict]:
-        """拼接搜索结果和笔记详情数据"""
+    def _merge_multi_account_rankings(self, search_results: List[Dict]) -> Dict[str, Dict]:
+        """
+        合并多账户的排序结果
+        
+        Args:
+            search_results: 原始搜索结果列表
+            
+        Returns:
+            Dict[note_id, {merged_rank, final_rank, account_ranks, account_list}]
+        """
+        # 按note_id分组，收集各账户的排名
+        note_rankings = {}
+        all_accounts = set()
+        
+        for result in search_results:
+            note_id = result.get('note_id')
+            account = result.get('search_account')
+            rank = result.get('rank')
+            
+            if not note_id or not account or rank is None:
+                continue
+                
+            all_accounts.add(account)
+            
+            if note_id not in note_rankings:
+                note_rankings[note_id] = {
+                    'account_ranks': {},
+                    'search_records': []
+                }
+            
+            note_rankings[note_id]['account_ranks'][account] = rank
+            note_rankings[note_id]['search_records'].append(result)
+        
+        all_accounts = sorted(list(all_accounts))
+        account_count = len(all_accounts)
+        max_rank = 110  # 搜索结果最大排名
+        
+        logger.info(f"[DataMergerTool] 发现 {account_count} 个搜索账户: {all_accounts}")
+        
+        # 计算每个note_id的合并排名
+        merged_rankings = {}
+        
+        for note_id, data in note_rankings.items():
+            account_ranks = data['account_ranks']
+            
+            # 收集各账户的排名，缺失的用None表示
+            ranks = []
+            for account in all_accounts:
+                ranks.append(account_ranks.get(account))
+            # test ranks一定有accounts的数量吗
+            print(f"note_id: {note_id}, ranks: {ranks}")
+            
+            # 计算合并排名
+            merged_rank = self._calculate_merged_rank(ranks, max_rank)
+            
+            merged_rankings[note_id] = {
+                'merged_rank': merged_rank,
+                'account_ranks': account_ranks,
+                'account_list': all_accounts,
+                'search_records': data['search_records']
+            } 
+        
+        # 按合并排名排序，分配最终排名
+        sorted_notes = sorted(merged_rankings.items(), key=lambda x: x[1]['merged_rank'])
+        
+        for final_rank, (note_id, data) in enumerate(sorted_notes, 1):
+            merged_rankings[note_id]['final_rank'] = final_rank
+        
+        # 记录排序结果
+        logger.info(f"[DataMergerTool] 排序示例（前5名）:")
+        for i, (note_id, data) in enumerate(sorted_notes[:5]):
+            account_ranks_str = ', '.join([f"{acc}:{data['account_ranks'].get(acc, 'N/A')}" 
+                                         for acc in all_accounts])
+            logger.info(f"  {i+1}. {note_id}: 合并排名={data['merged_rank']:.2f}, 各账户排名=[{account_ranks_str}]")
+        
+        return merged_rankings
+    
+    def _calculate_merged_rank(self, ranks: List[Optional[int]], max_rank: int = 110) -> float:
+        """
+        计算合并排名（加权平均 + 惩罚因子算法）
+        
+        Args:
+            ranks: 各账户的排名列表，None表示未出现
+            max_rank: 最大排名值
+            
+        Returns:
+            合并后的排名分数
+        """
+        valid_ranks = [r for r in ranks if r is not None]
+        missing_count = len(ranks) - len(valid_ranks)
+        
+        if not valid_ranks:
+            # 完全没有出现的内容，给予最差排名
+            return max_rank * 2
+        
+        # 方法：加权平均 + 惩罚因子
+        avg_rank = sum(valid_ranks) / len(valid_ranks)
+        
+        # 对缺失数据添加惩罚：每缺失一个账户，排名后移15%
+        penalty_rate = 0.15
+        penalty = missing_count * penalty_rate * avg_rank
+        
+        merged_rank = avg_rank + penalty
+        
+        return merged_rank
+    
+    def _merge_data_with_rankings(self, merged_rankings: Dict, note_details: List[Dict], keyword: str) -> List[Dict]:
+        """
+        使用合并排序结果拼接数据
+        
+        Args:
+            merged_rankings: 合并排序结果
+            note_details: 笔记详情列表
+            keyword: 关键词
+            
+        Returns:
+            拼接后的数据列表
+        """
         # 将笔记详情转换为字典，以note_id为key
         note_dict = {note['note_id']: note for note in note_details}
         
         merged_data = []
         
-        for search_record in search_results:
-            note_id = search_record.get('note_id')
+        # 按最终排名排序处理
+        sorted_rankings = sorted(merged_rankings.items(), key=lambda x: x[1]['final_rank'])
+        
+        for note_id, ranking_data in sorted_rankings:
             note_detail = note_dict.get(note_id, {})
             
             # 对品牌相关字段进行标准化处理
             normalized_brand_data = self._normalize_brand_fields(note_detail)
             
+            # 获取第一个搜索记录作为代表（用于获取基本搜索信息）
+            representative_search = ranking_data['search_records'][0] if ranking_data['search_records'] else {}
+            
+            # 构建账户排名信息字符串
+            account_ranks_info = []
+            for account in ranking_data['account_list']:
+                rank = ranking_data['account_ranks'].get(account)
+                account_ranks_info.append(f"{account}:{rank if rank else 'N/A'}")
+            
             # 合并记录
             merged_record = {
-                # 搜索结果字段
-                'search_id': search_record.get('id'),
-                'keyword': search_record.get('keyword'),
-                'search_account': search_record.get('search_account'),
-                'rank': search_record.get('rank'),
+                # 搜索结果字段（使用代表性记录）
+                'search_id': representative_search.get('id'),
+                'keyword': keyword,
+                #'search_account': 'MERGED',  # 标识为合并结果
+                'account_count': len(ranking_data['account_ranks']),  # 出现在多少个账户中
+                'rank': ranking_data['final_rank'],  # 最终排名
+                'merged_rank': round(ranking_data['merged_rank'], 2),  # 合并排名分数
+                'account_ranks': '; '.join(account_ranks_info),  # 各账户排名详情
                 'note_id': note_id,
                 
                 # 笔记详情字段
@@ -170,6 +304,7 @@ class DataMergerTool(BaseTool):
                 'tag_list': note_detail.get('tag_list'),
                 'author_id': note_detail.get('author_id'),
                 'nickname': note_detail.get('nickname'),
+                'last_update_time': note_detail.get('last_update_time'),
                 'liked_count': note_detail.get('liked_count'),
                 'collected_count': note_detail.get('collected_count'),
                 'comment_count': note_detail.get('comment_count'),
@@ -184,6 +319,8 @@ class DataMergerTool(BaseTool):
                 # 数据状态标识
                 'has_note_detail': bool(note_detail),
                 'has_brand_info': self._has_valid_brand_info(normalized_brand_data['brand_list']),
+                'data_crawler_time': representative_search.get('created_at'),
+        
             }
             
             merged_data.append(merged_record)
@@ -333,14 +470,21 @@ class DataMergerTool(BaseTool):
                 except:
                     pass
         
-        # 计算平均排名
-        ranks = [record['rank'] for record in merged_data if record.get('rank') is not None]
-        avg_rank = sum(ranks) / len(ranks) if ranks else 0
+        # 计算平均合并排名
+        merged_ranks = [record['merged_rank'] for record in merged_data if record.get('merged_rank') is not None]
+        avg_merged_rank = sum(merged_ranks) / len(merged_ranks) if merged_ranks else 0
+        
+        # 计算账户统计
+        account_counts = [record['account_count'] for record in merged_data if record.get('account_count') is not None]
+        avg_account_count = sum(account_counts) / len(account_counts) if account_counts else 0
+        max_account_count = max(account_counts) if account_counts else 0
         
         return {
             'matched_count': matched_count,
             'unmatched_count': unmatched_count,
             'with_brand_count': with_brand_count,
             'unique_brands': len(all_brands),
-            'avg_rank': avg_rank
+            'avg_merged_rank': avg_merged_rank,
+            'account_count': max_account_count,  # 总共涉及的账户数
+            'avg_account_per_note': avg_account_count  # 平均每个笔记出现在多少个账户中
         } 
