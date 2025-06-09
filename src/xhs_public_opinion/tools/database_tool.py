@@ -55,6 +55,24 @@ class SupabaseDatabase:
             logger.error(f"获取笔记数据失败: {e}")
             return []
     
+    def get_unprocessed_notes_by_ids(self, note_ids: list) -> list:
+        """根据note_id列表获取未处理的笔记数据（只返回brand_list为空的记录）"""
+        try:
+            if not note_ids:
+                return []
+            
+            response = (
+                self.client.table("xhs_note")
+                .select("*")
+                .in_("note_id", note_ids)
+                .or_("brand_list.is.null,brand_list.eq.[]")  # 只获取未处理的笔记
+                .execute()
+            )
+            return response.data
+        except Exception as e:
+            logger.error(f"根据note_id列表获取未处理笔记数据失败: {e}")
+            return []
+    
     def update_analysis_result(self, note_id: str, analysis_result: Dict[str, Any]) -> bool:
         """更新分析结果到数据库"""
         try:
@@ -63,8 +81,6 @@ class SupabaseDatabase:
                 "spu_list": analysis_result.get("spu_list", []),
                 "emotion_dict": analysis_result.get("emotion_dict", {}),
                 "evaluation_dict": analysis_result.get("evaluation_dict", {}),
-                "video_analysis": analysis_result.get("video_analysis", {}),
-
             }
             
             response = (
@@ -137,5 +153,33 @@ class SingleNoteWriterTool(BaseTool):
             error_msg = f"写入异常: {str(e)}"
             logger.error(f"[SingleNoteWriterTool] ❌ {error_msg}")
             return f"❌ {error_msg}"
+
+class SpecificNotesReaderTool(BaseTool):
+    """特定笔记读取工具"""
+    name: str = "specific_notes_reader"
+    description: str = "根据note_id列表从Supabase数据库读取特定的小红书笔记数据"
+    
+    def _run(self, note_ids: list) -> str:
+        """读取特定note_id的笔记数据"""
+        try:
+            logger.info(f"[SpecificNotesReaderTool] 准备读取 {len(note_ids)} 条特定笔记数据")
+            
+            db = SupabaseDatabase()
+            notes = db.get_unprocessed_notes_by_ids(note_ids)
+            
+            if not notes:
+                return "没有找到指定的笔记数据"
+            
+            result = {
+                "total_count": len(notes),
+                "requested_count": len(note_ids),
+                "notes": notes
+            }
+
+            return json.dumps(result, ensure_ascii=False)
+            
+        except Exception as e:
+            logger.error(f"读取特定笔记数据失败: {e}")
+            return f"读取特定笔记数据失败: {str(e)}"
         
     

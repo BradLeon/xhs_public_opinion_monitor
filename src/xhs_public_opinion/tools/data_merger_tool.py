@@ -189,9 +189,6 @@ class DataMergerTool(BaseTool):
             ranks = []
             for account in all_accounts:
                 ranks.append(account_ranks.get(account))
-            # test ranks一定有accounts的数量吗
-            print(f"note_id: {note_id}, ranks: {ranks}")
-            
             # 计算合并排名
             merged_rank = self._calculate_merged_rank(ranks, max_rank)
             
