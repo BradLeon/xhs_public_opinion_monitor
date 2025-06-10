@@ -1,0 +1,5 @@
+   # 忽略 data 目录
+   data/
+   
+   # 忽略 outputs 目录
+   outputs/
