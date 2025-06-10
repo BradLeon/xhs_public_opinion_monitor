@@ -24,6 +24,8 @@ class DataMergerTool(BaseTool):
     key: Optional[str] = None
     client: Optional[Client] = None
     brand_normalizer: Optional[BrandNormalizer] = None
+    column_mapping: Dict[str, str] = {}
+
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -37,8 +39,31 @@ class DataMergerTool(BaseTool):
         
         # 初始化品牌标准化器
         self.brand_normalizer = get_brand_normalizer()
+
+        self.column_mapping = {
+        "keyword": "搜索关键词",
+        "rank": "搜索排名",
+        "note_id": "笔记ID",
+        "type": "笔记类型",
+        "title": "笔记标题",
+        "desc": "笔记描述",
+        "note_url": "笔记URL",
+        "author_id": "作者ID",
+        "nickname": "作者昵称",
+        "last_update_time": "笔记最后更新时间",
+        "liked_count": "点赞数",
+        "collected_count": "收藏数",
+        "comment_count": "评论数",
+        "share_count": "分享数",
+        "brand_list": "品牌列表",
+        "spu_list": "SPU列表",
+        "emotion_dict": "情感倾向",
+        "evaluation_dict": "高频词",
+        "data_crawler_time": "数据采集时间",
+    }
+        
     
-    def _run(self, keyword: str, output_dir: str = "data/export") -> str:
+    def _run(self, keyword: str, output_dir_inner: str = "data/export",  output_dir_outer: str = "outputs") -> str:
         """
         执行数据拼接任务
         
@@ -76,26 +101,29 @@ class DataMergerTool(BaseTool):
             # 5. 数据拼接（使用合并后的排序结果）
             merged_data = self._merge_data_with_rankings(merged_rankings, note_details, keyword)
             
-            # 6. 生成CSV文件
-            csv_path = self._save_to_csv(merged_data, keyword, output_dir)
+            # 6. 生成CSV文件（只保存前100名）
+            csv_path = self._save_to_csv(merged_data, keyword, output_dir_inner, output_dir_outer)
             
-            # 7. 生成统计报告
-            stats = self._generate_statistics(merged_data, keyword)
+            # 7. 生成统计报告（基于前100名数据）
+            # 按rank排序并只取前100名用于统计
+            sorted_data = sorted(merged_data, key=lambda x: x.get('rank', float('inf')))
+            top_100_data = sorted_data[:100]
+            stats = self._generate_statistics(top_100_data, keyword)
             logger.info(f"""✅ 数据拼接完成！
 
 📊 统计信息:
 - 关键词: {keyword}
 - 原始搜索结果记录: {len(search_results)} 条
 - 合并后唯一笔记数: {len(note_ids)} 个
+- 筛选前100名记录: {len(top_100_data)} 条
 - 成功匹配: {stats['matched_count']} 条
 - 未匹配: {stats['unmatched_count']} 条
 - 输出文件: {csv_path}
 
-📈 数据概览:
-- 总记录数: {len(merged_data)}
+📈 数据概览（前100名）:
+- 总记录数: {len(top_100_data)}
 - 包含品牌信息的记录: {stats['with_brand_count']} 条
 - 涉及品牌数: {stats['unique_brands']} 个
-- 平均合并排名: {stats['avg_merged_rank']:.2f}
 - 涉及搜索账户数: {stats['account_count']} 个
 
 文件已保存到: {csv_path}""")
@@ -284,14 +312,13 @@ class DataMergerTool(BaseTool):
                 'search_id': representative_search.get('id'),
                 'keyword': keyword,
                 #'search_account': 'MERGED',  # 标识为合并结果
-                'account_count': len(ranking_data['account_ranks']),  # 出现在多少个账户中
+                #'account_count': len(ranking_data['account_ranks']),  # 出现在多少个账户中
                 'rank': ranking_data['final_rank'],  # 最终排名
-                'merged_rank': round(ranking_data['merged_rank'], 2),  # 合并排名分数
-                'account_ranks': '; '.join(account_ranks_info),  # 各账户排名详情
+                #'merged_rank': round(ranking_data['merged_rank'], 2),  # 合并排名分数
+                #'account_ranks': '; '.join(account_ranks_info),  # 各账户排名详情
                 'note_id': note_id,
                 
                 # 笔记详情字段
-                'note_table_id': note_detail.get('id'),
                 'title': note_detail.get('title'),
                 'type': note_detail.get('type'),
                 'desc': note_detail.get('desc'),
@@ -425,18 +452,29 @@ class DataMergerTool(BaseTool):
         # 其他情况返回False
         return False
     
-    def _save_to_csv(self, data: List[Dict], keyword: str, output_dir: str) -> str:
-        """保存数据到CSV文件"""
-        # 确保输出目录存在
-        os.makedirs(output_dir, exist_ok=True)
+    def _save_to_csv(self, data: List[Dict], keyword: str, output_dir_inner: str, output_dir_outer: str) -> str:
+        """保存数据到CSV文件（只保存前100名）"""
         
         # 生成文件名
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"merged_data_{keyword}_{timestamp}.csv"
-        filepath = os.path.join(output_dir, filename)
+        timestamp = datetime.now().strftime("%Y%m%d")
+        output_dir_inner = output_dir_inner + "/" + keyword 
+        output_dir_outer = output_dir_outer + "/" + keyword 
+        
+        # 确保输出目录存在
+        os.makedirs(output_dir_inner, exist_ok=True)
+        os.makedirs(output_dir_outer, exist_ok=True)
+        
+        # 按rank排序并只取前100名
+        sorted_data = sorted(data, key=lambda x: x.get('rank', float('inf')))
+        top_100_data = sorted_data[:100]
+        
+        logger.info(f"[DataMergerTool] 原始数据{len(data)}条，筛选前100名后为{len(top_100_data)}条")
+        
+        filename = f"merged_data_{timestamp}.csv"
+        filepath = os.path.join(output_dir_inner, filename)
         
         # 转换为DataFrame并保存
-        df = pd.DataFrame(data)
+        df = pd.DataFrame(top_100_data)
         
         # 处理JSON字段，转换为字符串
         json_columns = ['image_list', 'tag_list', 'brand_list', 'spu_list', 'emotion_dict', 'evaluation_dict']
@@ -444,10 +482,21 @@ class DataMergerTool(BaseTool):
             if col in df.columns:
                 df[col] = df[col].apply(lambda x: json.dumps(x, ensure_ascii=False) if x else '')
         
+        # 生成对外输出的中文CSV文件
+        outer_filename = f"basic_data_{timestamp}.csv"
+        outer_filepath = os.path.join(output_dir_outer, outer_filename)
+        
+        # 筛选column_mapping中存在的列并重命名为中文
+        available_columns = [col for col in self.column_mapping.keys() if col in df.columns]
+        df_chinese = df[available_columns].copy()
+        df_chinese.rename(columns=self.column_mapping, inplace=True)
+
         # 保存CSV
         df.to_csv(filepath, index=False, encoding='utf-8-sig')
+        df_chinese.to_csv(outer_filepath, index=False, encoding='utf-8-sig')
         
-        logger.info(f"[DataMergerTool] 数据已保存到: {filepath}")
+        logger.info(f"[DataMergerTool] 内部数据已保存到: {filepath}")
+        logger.info(f"[DataMergerTool] 对外数据已保存到: {outer_filepath}")
         return filepath
     
     def _generate_statistics(self, merged_data: List[Dict], keyword: str) -> Dict[str, Any]:

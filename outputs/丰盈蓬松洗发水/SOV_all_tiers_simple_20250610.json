@@ -1,0 +1,1352 @@
+{
+  "top20": {
+    "method": "simple",
+    "total_mentions": 33,
+    "unique_brands": 29,
+    "sov_data": [
+      {
+        "brand": "Fan Beauty",
+        "mention_count": 2,
+        "sov_percentage": 6.06,
+        "rank": 1
+      },
+      {
+        "brand": "Living Proof",
+        "mention_count": 2,
+        "sov_percentage": 6.06,
+        "rank": 2
+      },
+      {
+        "brand": "Kérastase",
+        "mention_count": 2,
+        "sov_percentage": 6.06,
+        "rank": 3
+      },
+      {
+        "brand": "Murrayle",
+        "mention_count": 2,
+        "sov_percentage": 6.06,
+        "rank": 4
+      },
+      {
+        "brand": "Nicomama",
+        "mention_count": 1,
+        "sov_percentage": 3.03,
+        "rank": 5
+      },
+      {
+        "brand": "Kundal",
+        "mention_count": 1,
+        "sov_percentage": 3.03,
+        "rank": 6
+      },
+      {
+        "brand": "昆黛尔",
+        "mention_count": 1,
+        "sov_percentage": 3.03,
+        "rank": 7
+      },
+      {
+        "brand": "Vetes",
+        "mention_count": 1,
+        "sov_percentage": 3.03,
+        "rank": 8
+      },
+      {
+        "brand": "Ehd",
+        "mention_count": 1,
+        "sov_percentage": 3.03,
+        "rank": 9
+      },
+      {
+        "brand": "Lummi",
+        "mention_count": 1,
+        "sov_percentage": 3.03,
+        "rank": 10
+      },
+      {
+        "brand": "璐米",
+        "mention_count": 1,
+        "sov_percentage": 3.03,
+        "rank": 11
+      },
+      {
+        "brand": "Pantene",
+        "mention_count": 1,
+        "sov_percentage": 3.03,
+        "rank": 12
+      },
+      {
+        "brand": "MY.ORGANICS",
+        "mention_count": 1,
+        "sov_percentage": 3.03,
+        "rank": 13
+      },
+      {
+        "brand": "Qimiki",
+        "mention_count": 1,
+        "sov_percentage": 3.03,
+        "rank": 14
+      },
+      {
+        "brand": "Cobiro",
+        "mention_count": 1,
+        "sov_percentage": 3.03,
+        "rank": 15
+      },
+      {
+        "brand": "Vs沙宣",
+        "mention_count": 1,
+        "sov_percentage": 3.03,
+        "rank": 16
+      },
+      {
+        "brand": "Off&Relax",
+        "mention_count": 1,
+        "sov_percentage": 3.03,
+        "rank": 17
+      },
+      {
+        "brand": "吕",
+        "mention_count": 1,
+        "sov_percentage": 3.03,
+        "rank": 18
+      },
+      {
+        "brand": "自然物语",
+        "mention_count": 1,
+        "sov_percentage": 3.03,
+        "rank": 19
+      },
+      {
+        "brand": "Davines",
+        "mention_count": 1,
+        "sov_percentage": 3.03,
+        "rank": 20
+      },
+      {
+        "brand": "大卫尼斯欧艾",
+        "mention_count": 1,
+        "sov_percentage": 3.03,
+        "rank": 21
+      },
+      {
+        "brand": "Kerasys",
+        "mention_count": 1,
+        "sov_percentage": 3.03,
+        "rank": 22
+      },
+      {
+        "brand": "爱敬",
+        "mention_count": 1,
+        "sov_percentage": 3.03,
+        "rank": 23
+      },
+      {
+        "brand": "Algn",
+        "mention_count": 1,
+        "sov_percentage": 3.03,
+        "rank": 24
+      },
+      {
+        "brand": "爱兰歌娜",
+        "mention_count": 1,
+        "sov_percentage": 3.03,
+        "rank": 25
+      },
+      {
+        "brand": "摩隆",
+        "mention_count": 1,
+        "sov_percentage": 3.03,
+        "rank": 26
+      },
+      {
+        "brand": "Maro",
+        "mention_count": 1,
+        "sov_percentage": 3.03,
+        "rank": 27
+      },
+      {
+        "brand": "年糕妈妈",
+        "mention_count": 1,
+        "sov_percentage": 3.03,
+        "rank": 28
+      },
+      {
+        "brand": "Ryo",
+        "mention_count": 1,
+        "sov_percentage": 3.03,
+        "rank": 29
+      }
+    ],
+    "tier": "top20",
+    "tier_limit": 20,
+    "total_records": 33
+  },
+  "top50": {
+    "method": "simple",
+    "total_mentions": 95,
+    "unique_brands": 69,
+    "sov_data": [
+      {
+        "brand": "Living Proof",
+        "mention_count": 6,
+        "sov_percentage": 6.32,
+        "rank": 1
+      },
+      {
+        "brand": "MY.ORGANICS",
+        "mention_count": 4,
+        "sov_percentage": 4.21,
+        "rank": 2
+      },
+      {
+        "brand": "Fan Beauty",
+        "mention_count": 3,
+        "sov_percentage": 3.16,
+        "rank": 3
+      },
+      {
+        "brand": "Virtue",
+        "mention_count": 3,
+        "sov_percentage": 3.16,
+        "rank": 4
+      },
+      {
+        "brand": "Murrayle",
+        "mention_count": 3,
+        "sov_percentage": 3.16,
+        "rank": 5
+      },
+      {
+        "brand": "Kérastase",
+        "mention_count": 3,
+        "sov_percentage": 3.16,
+        "rank": 6
+      },
+      {
+        "brand": "Davines",
+        "mention_count": 2,
+        "sov_percentage": 2.11,
+        "rank": 7
+      },
+      {
+        "brand": "Longtake",
+        "mention_count": 2,
+        "sov_percentage": 2.11,
+        "rank": 8
+      },
+      {
+        "brand": "Aesop",
+        "mention_count": 2,
+        "sov_percentage": 2.11,
+        "rank": 9
+      },
+      {
+        "brand": "Ehd",
+        "mention_count": 2,
+        "sov_percentage": 2.11,
+        "rank": 10
+      },
+      {
+        "brand": "Lummi",
+        "mention_count": 2,
+        "sov_percentage": 2.11,
+        "rank": 11
+      },
+      {
+        "brand": "璐米",
+        "mention_count": 2,
+        "sov_percentage": 2.11,
+        "rank": 12
+      },
+      {
+        "brand": "Pantene",
+        "mention_count": 2,
+        "sov_percentage": 2.11,
+        "rank": 13
+      },
+      {
+        "brand": "Algn",
+        "mention_count": 2,
+        "sov_percentage": 2.11,
+        "rank": 14
+      },
+      {
+        "brand": "Nicomama",
+        "mention_count": 2,
+        "sov_percentage": 2.11,
+        "rank": 15
+      },
+      {
+        "brand": "年糕妈妈",
+        "mention_count": 2,
+        "sov_percentage": 2.11,
+        "rank": 16
+      },
+      {
+        "brand": "红派",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 17
+      },
+      {
+        "brand": "Gaar",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 18
+      },
+      {
+        "brand": "威莱雅",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 19
+      },
+      {
+        "brand": "Formulator's Gift",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 20
+      },
+      {
+        "brand": "配方师的告白",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 21
+      },
+      {
+        "brand": "馥珮",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 22
+      },
+      {
+        "brand": "胖东来",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 23
+      },
+      {
+        "brand": "Christophe Robin",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 24
+      },
+      {
+        "brand": "若也roye",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 25
+      },
+      {
+        "brand": "Philip B",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 26
+      },
+      {
+        "brand": "Revitalash",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 27
+      },
+      {
+        "brand": "21 Pharma",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 28
+      },
+      {
+        "brand": "L'oreal",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 29
+      },
+      {
+        "brand": "Eof",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 30
+      },
+      {
+        "brand": "岚礼",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 31
+      },
+      {
+        "brand": "Evolvh",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 32
+      },
+      {
+        "brand": "L'oréal",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 33
+      },
+      {
+        "brand": "Dove",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 34
+      },
+      {
+        "brand": "Aussie",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 35
+      },
+      {
+        "brand": "康王",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 36
+      },
+      {
+        "brand": "Ouai",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 37
+      },
+      {
+        "brand": "康如",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 38
+      },
+      {
+        "brand": "域发",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 39
+      },
+      {
+        "brand": "菲诗",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 40
+      },
+      {
+        "brand": "惊爆",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 41
+      },
+      {
+        "brand": "澳丝",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 42
+      },
+      {
+        "brand": "海洋主义",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 43
+      },
+      {
+        "brand": "Imitop",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 44
+      },
+      {
+        "brand": "小美家",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 45
+      },
+      {
+        "brand": "Off&Relax",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 46
+      },
+      {
+        "brand": "Maro",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 47
+      },
+      {
+        "brand": "摩隆",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 48
+      },
+      {
+        "brand": "爱兰歌娜",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 49
+      },
+      {
+        "brand": "爱敬",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 50
+      },
+      {
+        "brand": "Kerasys",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 51
+      },
+      {
+        "brand": "大卫尼斯欧艾",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 52
+      },
+      {
+        "brand": "吕",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 53
+      },
+      {
+        "brand": "Ryo",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 54
+      },
+      {
+        "brand": "Vs沙宣",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 55
+      },
+      {
+        "brand": "Cobiro",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 56
+      },
+      {
+        "brand": "Qimiki",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 57
+      },
+      {
+        "brand": "Vetes",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 58
+      },
+      {
+        "brand": "昆黛尔",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 59
+      },
+      {
+        "brand": "Kundal",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 60
+      },
+      {
+        "brand": "Ogx",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 61
+      },
+      {
+        "brand": "K18",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 62
+      },
+      {
+        "brand": "自然物语",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 63
+      },
+      {
+        "brand": "Socus",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 64
+      },
+      {
+        "brand": "Yeren Tang",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 65
+      },
+      {
+        "brand": "Bioxsine",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 66
+      },
+      {
+        "brand": "My A Ganics",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 67
+      },
+      {
+        "brand": "Olaplex",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 68
+      },
+      {
+        "brand": "伊索",
+        "mention_count": 1,
+        "sov_percentage": 1.05,
+        "rank": 69
+      }
+    ],
+    "tier": "top50",
+    "tier_limit": 50,
+    "total_records": 95
+  },
+  "top100": {
+    "method": "simple",
+    "total_mentions": 181,
+    "unique_brands": 121,
+    "sov_data": [
+      {
+        "brand": "Living Proof",
+        "mention_count": 15,
+        "sov_percentage": 8.29,
+        "rank": 1
+      },
+      {
+        "brand": "Off&Relax",
+        "mention_count": 6,
+        "sov_percentage": 3.31,
+        "rank": 2
+      },
+      {
+        "brand": "MY.ORGANICS",
+        "mention_count": 5,
+        "sov_percentage": 2.76,
+        "rank": 3
+      },
+      {
+        "brand": "Kérastase",
+        "mention_count": 5,
+        "sov_percentage": 2.76,
+        "rank": 4
+      },
+      {
+        "brand": "Fan Beauty",
+        "mention_count": 4,
+        "sov_percentage": 2.21,
+        "rank": 5
+      },
+      {
+        "brand": "Davines",
+        "mention_count": 4,
+        "sov_percentage": 2.21,
+        "rank": 6
+      },
+      {
+        "brand": "Virtue",
+        "mention_count": 4,
+        "sov_percentage": 2.21,
+        "rank": 7
+      },
+      {
+        "brand": "施华蔻",
+        "mention_count": 3,
+        "sov_percentage": 1.66,
+        "rank": 8
+      },
+      {
+        "brand": "Murrayle",
+        "mention_count": 3,
+        "sov_percentage": 1.66,
+        "rank": 9
+      },
+      {
+        "brand": "Lummi",
+        "mention_count": 3,
+        "sov_percentage": 1.66,
+        "rank": 10
+      },
+      {
+        "brand": "Pantene",
+        "mention_count": 3,
+        "sov_percentage": 1.66,
+        "rank": 11
+      },
+      {
+        "brand": "璐米",
+        "mention_count": 3,
+        "sov_percentage": 1.66,
+        "rank": 12
+      },
+      {
+        "brand": "L'oréal",
+        "mention_count": 3,
+        "sov_percentage": 1.66,
+        "rank": 13
+      },
+      {
+        "brand": "Clear",
+        "mention_count": 2,
+        "sov_percentage": 1.1,
+        "rank": 14
+      },
+      {
+        "brand": "Dercos",
+        "mention_count": 2,
+        "sov_percentage": 1.1,
+        "rank": 15
+      },
+      {
+        "brand": "Longtake",
+        "mention_count": 2,
+        "sov_percentage": 1.1,
+        "rank": 16
+      },
+      {
+        "brand": "姜大福",
+        "mention_count": 2,
+        "sov_percentage": 1.1,
+        "rank": 17
+      },
+      {
+        "brand": "Aesop",
+        "mention_count": 2,
+        "sov_percentage": 1.1,
+        "rank": 18
+      },
+      {
+        "brand": "Olaplex",
+        "mention_count": 2,
+        "sov_percentage": 1.1,
+        "rank": 19
+      },
+      {
+        "brand": "Algn",
+        "mention_count": 2,
+        "sov_percentage": 1.1,
+        "rank": 20
+      },
+      {
+        "brand": "Nicomama",
+        "mention_count": 2,
+        "sov_percentage": 1.1,
+        "rank": 21
+      },
+      {
+        "brand": "年糕妈妈",
+        "mention_count": 2,
+        "sov_percentage": 1.1,
+        "rank": 22
+      },
+      {
+        "brand": "Vichy",
+        "mention_count": 2,
+        "sov_percentage": 1.1,
+        "rank": 23
+      },
+      {
+        "brand": "Ehd",
+        "mention_count": 2,
+        "sov_percentage": 1.1,
+        "rank": 24
+      },
+      {
+        "brand": "Kundal",
+        "mention_count": 2,
+        "sov_percentage": 1.1,
+        "rank": 25
+      },
+      {
+        "brand": "Niucoco",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 26
+      },
+      {
+        "brand": "多 Pan",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 27
+      },
+      {
+        "brand": "Klorane",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 28
+      },
+      {
+        "brand": "达霏欣",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 29
+      },
+      {
+        "brand": "Jie 夫",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 30
+      },
+      {
+        "brand": "薇 Zi",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 31
+      },
+      {
+        "brand": "Qie 初",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 32
+      },
+      {
+        "brand": "Biolas",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 33
+      },
+      {
+        "brand": "小猪当康",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 34
+      },
+      {
+        "brand": "Selsun Blue",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 35
+      },
+      {
+        "brand": "Loreal",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 36
+      },
+      {
+        "brand": "Deepseek",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 37
+      },
+      {
+        "brand": "馥 雅",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 38
+      },
+      {
+        "brand": "Giovanni",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 39
+      },
+      {
+        "brand": "Schwarzkopf",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 40
+      },
+      {
+        "brand": "Aquair",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 41
+      },
+      {
+        "brand": "清植雅",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 42
+      },
+      {
+        "brand": "米铺植萃",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 43
+      },
+      {
+        "brand": "施 蔻",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 44
+      },
+      {
+        "brand": "歌原",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 45
+      },
+      {
+        "brand": "D S实验室",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 46
+      },
+      {
+        "brand": "Sheveu",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 47
+      },
+      {
+        "brand": "24 Kerats",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 48
+      },
+      {
+        "brand": "Mauli Rituals",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 49
+      },
+      {
+        "brand": "若也",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 50
+      },
+      {
+        "brand": "Amrah",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 51
+      },
+      {
+        "brand": "Selsun",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 52
+      },
+      {
+        "brand": "Revlon",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 53
+      },
+      {
+        "brand": "Alpecin",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 54
+      },
+      {
+        "brand": "Aveda",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 55
+      },
+      {
+        "brand": "Kiehl's",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 56
+      },
+      {
+        "brand": "Alra",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 57
+      },
+      {
+        "brand": "Aromase",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 58
+      },
+      {
+        "brand": "萨和",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 59
+      },
+      {
+        "brand": "Forshine",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 60
+      },
+      {
+        "brand": "花香5",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 61
+      },
+      {
+        "brand": "Botanist",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 62
+      },
+      {
+        "brand": "Tahe",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 63
+      },
+      {
+        "brand": "安利",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 64
+      },
+      {
+        "brand": "Biosxine",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 65
+      },
+      {
+        "brand": "Spes",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 66
+      },
+      {
+        "brand": "100年润发",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 67
+      },
+      {
+        "brand": "Shiseido",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 68
+      },
+      {
+        "brand": "亚朵",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 69
+      },
+      {
+        "brand": "祖玛珑",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 70
+      },
+      {
+        "brand": "惊爆",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 71
+      },
+      {
+        "brand": "丝婷",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 72
+      },
+      {
+        "brand": "Vetes",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 73
+      },
+      {
+        "brand": "Imitop",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 74
+      },
+      {
+        "brand": "小美家",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 75
+      },
+      {
+        "brand": "My A Ganics",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 76
+      },
+      {
+        "brand": "Bioxsine",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 77
+      },
+      {
+        "brand": "Yeren Tang",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 78
+      },
+      {
+        "brand": "Socus",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 79
+      },
+      {
+        "brand": "海洋主义",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 80
+      },
+      {
+        "brand": "K18",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 81
+      },
+      {
+        "brand": "Ogx",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 82
+      },
+      {
+        "brand": "昆黛尔",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 83
+      },
+      {
+        "brand": "Qimiki",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 84
+      },
+      {
+        "brand": "伊索",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 85
+      },
+      {
+        "brand": "Cobiro",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 86
+      },
+      {
+        "brand": "Vs沙宣",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 87
+      },
+      {
+        "brand": "Ryo",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 88
+      },
+      {
+        "brand": "吕",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 89
+      },
+      {
+        "brand": "大卫尼斯欧艾",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 90
+      },
+      {
+        "brand": "Kerasys",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 91
+      },
+      {
+        "brand": "爱敬",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 92
+      },
+      {
+        "brand": "爱兰歌娜",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 93
+      },
+      {
+        "brand": "摩隆",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 94
+      },
+      {
+        "brand": "Maro",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 95
+      },
+      {
+        "brand": "Aussie",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 96
+      },
+      {
+        "brand": "澳丝",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 97
+      },
+      {
+        "brand": "威莱雅",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 98
+      },
+      {
+        "brand": "Formulator's Gift",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 99
+      },
+      {
+        "brand": "Philip B",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 100
+      },
+      {
+        "brand": "Gaar",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 101
+      },
+      {
+        "brand": "Dove",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 102
+      },
+      {
+        "brand": "康王",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 103
+      },
+      {
+        "brand": "Eof",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 104
+      },
+      {
+        "brand": "红派",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 105
+      },
+      {
+        "brand": "自然物语",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 106
+      },
+      {
+        "brand": "菲诗",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 107
+      },
+      {
+        "brand": "域发",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 108
+      },
+      {
+        "brand": "康如",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 109
+      },
+      {
+        "brand": "Ouai",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 110
+      },
+      {
+        "brand": "Evolvh",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 111
+      },
+      {
+        "brand": "岚礼",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 112
+      },
+      {
+        "brand": "L'oreal",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 113
+      },
+      {
+        "brand": "21 Pharma",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 114
+      },
+      {
+        "brand": "Revitalash",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 115
+      },
+      {
+        "brand": "若也roye",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 116
+      },
+      {
+        "brand": "Christophe Robin",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 117
+      },
+      {
+        "brand": "胖东来",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 118
+      },
+      {
+        "brand": "馥珮",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 119
+      },
+      {
+        "brand": "配方师的告白",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 120
+      },
+      {
+        "brand": "半亩花田",
+        "mention_count": 1,
+        "sov_percentage": 0.55,
+        "rank": 121
+      }
+    ],
+    "tier": "top100",
+    "tier_limit": 100,
+    "total_records": 181
+  },
+  "metadata": {
+    "keyword": "丰盈蓬松洗发水",
+    "method": "simple",
+    "calculated_at": "2025-06-10T11:48:03.874070",
+    "tool_version": "2.0"
+  }
+}

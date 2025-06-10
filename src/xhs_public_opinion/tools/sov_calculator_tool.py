@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 from typing import List, Dict, Any, Optional, Tuple
 from crewai.tools import BaseTool
+from supabase import create_client, Client
 import logging
 from datetime import datetime
 import glob
@@ -18,9 +19,26 @@ logger = logging.getLogger(__name__)
 class SOVCalculatorTool(BaseTool):
     """SOV计算工具 - 计算各品牌在关键词下的声量占比（Share of Voice）"""
     name: str = "sov_calculator"
-    description: str = "基于合并后的CSV数据，计算各品牌在指定关键词下的SOV（声量占比）"
+    description: str = "基于合并后的CSV数据，计算各品牌在指定关键词下的SOV（声量占比），支持分档位计算并写入数据库"
     
-    def _run(self, keyword: str, data_dir: str = "data/export", method: str = "weighted") -> str:
+    # 声明Pydantic字段
+    url: Optional[str] = None
+    key: Optional[str] = None
+    client: Optional[Client] = None
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # 初始化Supabase数据库连接
+        self.url = os.getenv("SEO_SUPABASE_URL")
+        self.key = os.getenv("SEO_SUPABASE_ANON_KEY")
+        
+        if self.url and self.key:
+            self.client = create_client(self.url, self.key)
+        else:
+            logger.warning("Supabase环境变量未设置，将跳过数据库写入")
+            self.client = None
+    
+    def _run(self, keyword: str, input_data_dir: str = "data/export", output_data_dir: str = "outputs", method: str = "weighted") -> str:
         """
         计算SOV
         
@@ -39,7 +57,7 @@ class SOVCalculatorTool(BaseTool):
             logger.info(f"[SOVCalculatorTool] 开始计算关键词 '{keyword}' 的SOV，方法: {method}")
             
             # 1. 查找对应的CSV文件
-            csv_file = self._find_csv_file(keyword, data_dir)
+            csv_file = self._find_csv_file(keyword, input_data_dir)
             if not csv_file:
                 return f"未找到关键词 '{keyword}' 的数据文件，请先使用DataMergerTool生成宽表数据"
             
@@ -50,29 +68,26 @@ class SOVCalculatorTool(BaseTool):
             # 3. 数据预处理
             processed_df = self._preprocess_data(df)
             
-            # 4. 根据选择的方法计算SOV
-            if method == "simple":
-                sov_results = self._calculate_simple_sov(processed_df)
-            elif method == "weighted":
-                sov_results = self._calculate_weighted_sov(processed_df)
-            elif method == "engagement":
-                sov_results = self._calculate_engagement_sov(processed_df)
-            else:
-                return f"不支持的计算方法: {method}。支持的方法: simple, weighted, engagement"
+            # 4. 分档位计算SOV
+            tier_results = self._calculate_tiered_sov(processed_df, method)
             
-            # 5. 保存结果
-            result_file = self._save_sov_results(sov_results, keyword, method, data_dir)
+            # 5. 保存结果到CSV
+            result_files = self._save_tiered_sov_results(tier_results, keyword, method, output_data_dir)
             
-            # 6. 生成报告
-            report = self._generate_sov_report(sov_results, keyword, method, len(processed_df))
+            # 6. 写入数据库
+            db_write_result = self._write_sov_to_database(tier_results, keyword, method)
+            #db_write_result= '123'
+            # 7. 生成报告
+            report = self._generate_tiered_sov_report(tier_results, keyword, method, len(processed_df))
             
             return f"""✅ SOV计算完成！
 
 📊 SOV分析报告:
 {report}
 
-📁 结果文件: {result_file}
-📁 数据源: {csv_file}"""
+📁 结果文件: {result_files}
+📁 数据源: {csv_file}
+📁 数据库写入: {db_write_result}"""
             
         except Exception as e:
             logger.error(f"[SOVCalculatorTool] SOV计算失败: {e}")
@@ -80,7 +95,7 @@ class SOVCalculatorTool(BaseTool):
     
     def _find_csv_file(self, keyword: str, data_dir: str) -> Optional[str]:
         """查找指定关键词的最新CSV文件"""
-        pattern = os.path.join(data_dir, f"merged_data_{keyword}_*.csv")
+        pattern = os.path.join(data_dir+'/'+keyword, f"merged_data_*.csv")
         files = glob.glob(pattern)
         
         if not files:
@@ -259,101 +274,332 @@ class SOVCalculatorTool(BaseTool):
             'sov_data': sov_data
         }
     
-    def _save_sov_results(self, results: Dict[str, Any], keyword: str, method: str, data_dir: str) -> str:
-        """保存SOV计算结果"""
-        # 确保输出目录存在
-        os.makedirs(data_dir, exist_ok=True)
+    def _calculate_tiered_sov(self, df: pd.DataFrame, method: str) -> Dict[str, Any]:
+        """分档位计算SOV（top20、top50、top100）"""
+        tiers = {
+            'top20': 20,
+            'top50': 50, 
+            'top100': 100
+        }
         
-        # 生成文件名
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"sov_results_{keyword}_{method}_{timestamp}.json"
-        filepath = os.path.join(data_dir, filename)
+        tier_results = {}
+        
+        for tier_name, tier_limit in tiers.items():
+            logger.info(f"[SOVCalculatorTool] 计算 {tier_name} SOV...")
+            
+            # 筛选对应档位的数据
+            tier_df = df[df['rank'] <= tier_limit].copy()
+            
+            if tier_df.empty:
+                logger.warning(f"[SOVCalculatorTool] {tier_name} 档位没有数据")
+                tier_results[tier_name] = {
+                    'method': method,
+                    'tier': tier_name,
+                    'tier_limit': tier_limit,
+                    'total_records': 0,
+                    'unique_brands': 0,
+                    'sov_data': []
+                }
+                continue
+            
+            # 根据方法计算SOV
+            if method == "simple":
+                sov_result = self._calculate_simple_sov(tier_df)
+            elif method == "weighted":
+                sov_result = self._calculate_weighted_sov(tier_df)
+            elif method == "engagement":
+                sov_result = self._calculate_engagement_sov(tier_df)
+            else:
+                raise ValueError(f"不支持的计算方法: {method}")
+            
+            # 添加档位信息
+            sov_result['tier'] = tier_name
+            sov_result['tier_limit'] = tier_limit
+            sov_result['total_records'] = len(tier_df)
+            
+            tier_results[tier_name] = sov_result
+            
+            logger.info(f"[SOVCalculatorTool] {tier_name} SOV计算完成，记录数: {len(tier_df)}, 品牌数: {sov_result['unique_brands']}")
+        
+        return tier_results
+    
+    def _save_tiered_sov_results(self, tier_results: Dict[str, Any], keyword: str, method: str, data_dir: str) -> str:
+        """保存分档位SOV计算结果到CSV"""
+        # 确保输出目录存在
+        output_dir = os.path.join(data_dir, keyword)
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # 生成时间戳
+        timestamp = datetime.now().strftime("%Y%m%d")
+        
+        result_files = []
+        
+        # 合并所有档位的数据到一个CSV文件
+        all_sov_data = []
+        
+        for tier_name, tier_data in tier_results.items():
+            if not tier_data.get('sov_data'):
+                logger.warning(f"[SOVCalculatorTool] {tier_name} 档位没有SOV数据，跳过")
+                continue
+            
+            # 为每条记录添加档位信息
+            for sov_record in tier_data['sov_data']:
+                record = sov_record.copy()
+                record['keyword'] = keyword
+                record['method'] = method
+                record['tier'] = tier_name
+                record['tier_limit'] = tier_data['tier_limit']
+                record['total_records'] = tier_data['total_records']
+                record['calculated_at'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                all_sov_data.append(record)
+        
+        if all_sov_data:
+            # CSV文件名
+            csv_filename = f"SOV_all_tiers_{method}_{timestamp}.csv"
+            csv_filepath = os.path.join(output_dir, csv_filename)
+            
+            # 创建DataFrame
+            sov_df = pd.DataFrame(all_sov_data)
+            
+            # 重新排列列顺序
+            columns_order = ['keyword', 'method', 'tier', 'tier_limit', 'rank', 'brand', 'mention_count', 'sov_percentage']
+            
+            # 根据计算方法添加特定列
+            if method == 'weighted':
+                columns_order.extend(['weighted_score', 'avg_rank'])
+            elif method == 'engagement':
+                columns_order.extend(['total_engagement', 'avg_engagement_per_note', 'avg_rank'])
+            
+            columns_order.extend(['total_records', 'calculated_at'])
+            
+            # 筛选存在的列
+            available_columns = [col for col in columns_order if col in sov_df.columns]
+            sov_df = sov_df[available_columns]
+            
+            # 保存CSV
+            sov_df.to_csv(csv_filepath, index=False, encoding='utf-8-sig')
+            result_files.append(csv_filepath)
+            
+            logger.info(f"[SOVCalculatorTool] 所有档位SOV结果已保存: {csv_filepath}")
+        
+        # 同时保存合并的JSON文件
+        json_filename = f"SOV_all_tiers_{method}_{timestamp}.json"
+        json_filepath = os.path.join(output_dir, json_filename)
         
         # 添加元数据
-        results['metadata'] = {
+        tier_results['metadata'] = {
             'keyword': keyword,
             'method': method,
             'calculated_at': datetime.now().isoformat(),
-            'tool_version': '1.0'
+            'tool_version': '2.0'
         }
         
-        # 保存JSON文件
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(results, f, ensure_ascii=False, indent=2)
+        with open(json_filepath, 'w', encoding='utf-8') as f:
+            json.dump(tier_results, f, ensure_ascii=False, indent=2)
         
-        # 同时保存CSV格式的SOV数据
-        csv_filename = f"sov_results_{keyword}_{method}_{timestamp}.csv"
-        csv_filepath = os.path.join(data_dir, csv_filename)
+        result_files.append(json_filepath)
+        logger.info(f"[SOVCalculatorTool] 合并JSON结果已保存: {json_filepath}")
         
-        sov_df = pd.DataFrame(results['sov_data'])
-        sov_df.to_csv(csv_filepath, index=False, encoding='utf-8-sig')
-        
-        logger.info(f"[SOVCalculatorTool] SOV结果已保存: {filepath}")
-        logger.info(f"[SOVCalculatorTool] SOV结果CSV: {csv_filepath}")
-        
-        return filepath
+        return ", ".join(result_files)
     
-    def _generate_sov_report(self, results: Dict[str, Any], keyword: str, method: str, total_records: int) -> str:
-        """生成SOV报告"""
-        sov_data = results['sov_data']
-        
-        if not sov_data:
-            return "没有找到品牌SOV数据"
+    def _generate_tiered_sov_report(self, tier_results: Dict[str, Any], keyword: str, method: str, total_records: int) -> str:
+        """生成分档位SOV报告"""
+        if not tier_results:
+            return "没有找到SOV数据"
         
         report_lines = []
         report_lines.append(f"关键词: {keyword}")
         report_lines.append(f"计算方法: {method}")
         report_lines.append(f"总记录数: {total_records}")
-        report_lines.append(f"涉及品牌数: {results['unique_brands']}")
         report_lines.append("")
-        report_lines.append("🏆 Top 10 品牌SOV排名:")
-        report_lines.append("-" * 60)
         
-        # 显示前10名
-        top_brands = sov_data[:10]
+        # 为每个档位生成报告
+        for tier_name in ['top20', 'top50', 'top100']:
+            if tier_name not in tier_results:
+                continue
+                
+            tier_data = tier_results[tier_name]
+            sov_data = tier_data.get('sov_data', [])
+            
+            if not sov_data:
+                report_lines.append(f"🏆 {tier_name.upper()} 档位: 无数据")
+                report_lines.append("")
+                continue
+            
+            report_lines.append(f"🏆 {tier_name.upper()} 档位 (前{tier_data['tier_limit']}名):")
+            report_lines.append(f"   记录数: {tier_data['total_records']}, 涉及品牌数: {tier_data['unique_brands']}")
+            report_lines.append("-" * 60)
+            
+            # 显示前10名品牌
+            top_brands = sov_data[:10]
+            
+            if method == 'simple':
+                for item in top_brands:
+                    report_lines.append(
+                        f"   {item['rank']:2d}. {item['brand']:<20} | "
+                        f"笔记数: {item['mention_count']:3d} | "
+                        f"SOV: {item['sov_percentage']:6.2f}%"
+                    )
+            elif method == 'weighted':
+                for item in top_brands:
+                    report_lines.append(
+                        f"   {item['rank']:2d}. {item['brand']:<20} | "
+                        f"笔记数: {item['mention_count']:3d} | "
+                        f"平均排名: {item['avg_rank']:5.2f} | "
+                        f"SOV: {item['sov_percentage']:6.2f}%"
+                    )
+            elif method == 'engagement':
+                for item in top_brands:
+                    report_lines.append(
+                        f"   {item['rank']:2d}. {item['brand']:<20} | "
+                        f"笔记数: {item['mention_count']:3d} | "
+                        f"总互动: {item['total_engagement']:6d} | "
+                        f"SOV: {item['sov_percentage']:6.2f}%"
+                    )
+            
+            # 添加市场集中度分析
+            if len(sov_data) >= 3:
+                top3_sov = sum(item['sov_percentage'] for item in sov_data[:3])
+                top5_sov = sum(item['sov_percentage'] for item in sov_data[:5]) if len(sov_data) >= 5 else top3_sov
+                
+                report_lines.append("")
+                report_lines.append(f"   📈 {tier_name.upper()} 市场集中度:")
+                report_lines.append(f"   - Top 3 品牌SOV总和: {top3_sov:.2f}%")
+                if len(sov_data) >= 5:
+                    report_lines.append(f"   - Top 5 品牌SOV总和: {top5_sov:.2f}%")
+                
+                # 市场集中度判断
+                if top3_sov > 60:
+                    concentration = "高度集中"
+                elif top3_sov > 40:
+                    concentration = "中度集中"
+                else:
+                    concentration = "分散竞争"
+                
+                report_lines.append(f"   - 市场集中度: {concentration}")
+            
+            report_lines.append("")
         
-        if method == 'simple':
-            for item in top_brands:
-                report_lines.append(
-                    f"{item['rank']:2d}. {item['brand']:<20} | "
-                    f"笔记数: {item['mention_count']:3d} | "
-                    f"SOV: {item['sov_percentage']:6.2f}%"
-                )
-        elif method == 'weighted':
-            for item in top_brands:
-                report_lines.append(
-                    f"{item['rank']:2d}. {item['brand']:<20} | "
-                    f"笔记数: {item['mention_count']:3d} | "
-                    f"平均排名: {item['avg_rank']:5.2f} | "
-                    f"SOV: {item['sov_percentage']:6.2f}%"
-                )
-        elif method == 'engagement':
-            for item in top_brands:
-                report_lines.append(
-                    f"{item['rank']:2d}. {item['brand']:<20} | "
-                    f"笔记数: {item['mention_count']:3d} | "
-                    f"总互动: {item['total_engagement']:6d} | "
-                    f"SOV: {item['sov_percentage']:6.2f}%"
-                )
+        # 添加档位对比分析
+        if len(tier_results) > 1:
+            report_lines.append("📊 档位对比分析:")
+            report_lines.append("-" * 60)
+            
+            # 找出在所有档位都出现的品牌
+            all_brands = set()
+            for tier_data in tier_results.values():
+                if isinstance(tier_data, dict) and 'sov_data' in tier_data:
+                    for item in tier_data['sov_data']:
+                        all_brands.add(item['brand'])
+            
+            # 显示主要品牌在不同档位的表现
+            main_brands = list(all_brands)[:5]  # 取前5个品牌进行对比
+            
+            for brand in main_brands:
+                brand_performance = []
+                for tier_name in ['top20', 'top50', 'top100']:
+                    if tier_name in tier_results:
+                        tier_data = tier_results[tier_name]
+                        for item in tier_data.get('sov_data', []):
+                            if item['brand'] == brand:
+                                brand_performance.append(f"{tier_name}: {item['sov_percentage']:.2f}%")
+                                break
+                
+                if brand_performance:
+                    report_lines.append(f"   {brand}: {' | '.join(brand_performance)}")
         
-        # 添加市场集中度分析
-        report_lines.append("")
-        report_lines.append("📈 市场集中度分析:")
+        return "\n".join(report_lines)
+    
+    def _write_sov_to_database(self, tier_results: Dict[str, Any], keyword: str, method: str) -> str:
+        """将SOV结果写入Supabase数据库表xhs_keyword_sov_result"""
+        if not self.client:
+            return "❌ 数据库连接未初始化，跳过数据库写入"
         
-        top3_sov = sum(item['sov_percentage'] for item in sov_data[:3])
-        top5_sov = sum(item['sov_percentage'] for item in sov_data[:5])
-        
-        report_lines.append(f"- Top 3 品牌SOV总和: {top3_sov:.2f}%")
-        report_lines.append(f"- Top 5 品牌SOV总和: {top5_sov:.2f}%")
-        
-        # 市场集中度判断
-        if top3_sov > 60:
-            concentration = "高度集中"
-        elif top3_sov > 40:
-            concentration = "中度集中"
-        else:
-            concentration = "分散竞争"
-        
-        report_lines.append(f"- 市场集中度: {concentration}")
-        
-        return "\n".join(report_lines) 
+        try:
+            logger.info(f"[SOVCalculatorTool] 开始写入SOV结果到数据库...")
+            
+            # 准备要插入的数据
+            data_to_insert = []
+            
+            for tier_name, tier_data in tier_results.items():
+                if tier_name == 'metadata':  # 跳过元数据
+                    continue
+                    
+                if not tier_data.get('sov_data'):
+                    logger.warning(f"[SOVCalculatorTool] {tier_name} 档位没有SOV数据，跳过写入")
+                    continue
+                
+                for sov_item in tier_data['sov_data']:
+                    # 处理可能为空或NaN的数值字段
+                    def safe_float(value, default=0.0):
+                        try:
+                            if pd.isna(value) or value == '' or value is None:
+                                return default
+                            return float(value)
+                        except (ValueError, TypeError):
+                            return default
+                    
+                    def safe_int(value, default=0):
+                        try:
+                            if pd.isna(value) or value == '' or value is None:
+                                return default
+                            return int(float(value))
+                        except (ValueError, TypeError):
+                            return default
+                    
+                    def safe_str(value, default=""):
+                        try:
+                            if pd.isna(value) or value is None:
+                                return default
+                            return str(value)
+                        except:
+                            return default
+                    
+                    record = {
+                        "keyword": safe_str(keyword),
+                        #"method": safe_str(method),
+                        #"tier": safe_str(tier_name),
+                        "tier_limit": safe_int(tier_data.get('tier_limit')),
+                        "brand": safe_str(sov_item.get('brand')),
+                        "rank": safe_int(sov_item.get('rank')),
+                        "sov_percentage": safe_float(sov_item.get('sov_percentage')),
+                        "mention_count": safe_int(sov_item.get('mention_count')),
+                        "total_records": safe_int(tier_data.get('total_records')),
+                        "unique_brands": safe_int(tier_data.get('unique_brands')),
+                        #"created_at": datetime.now().isoformat(),
+                        #"updated_at": datetime.now().isoformat()
+                    }
+                    
+                    # 根据计算方法添加特定字段
+                    if method == 'weighted':
+                        record["weighted_score"] = safe_float(sov_item.get('weighted_score'))
+                        record["avg_rank"] = safe_float(sov_item.get('avg_rank'))
+                    elif method == 'engagement':
+                        record["total_engagement"] = safe_int(sov_item.get('total_engagement'))
+                        record["avg_engagement_per_note"] = safe_float(sov_item.get('avg_engagement_per_note'))
+                        record["avg_rank"] = safe_float(sov_item.get('avg_rank'))
+                    
+                    data_to_insert.append(record)
+            
+            if not data_to_insert:
+                return "❌ 没有SOV数据需要写入数据库"
+            
+            # 批量插入数据到目标表
+            response = (
+                self.client.table("xhs_keyword_sov_result")
+                .insert(data_to_insert)
+                .execute()
+            )
+            
+            if response.data:
+                success_count = len(response.data)
+                logger.info(f"[SOVCalculatorTool] ✅ 成功写入 {success_count} 条SOV记录到数据库")
+                return f"✅ 成功写入 {success_count} 条SOV记录到数据库"
+            else:
+                logger.warning(f"[SOVCalculatorTool] ⚠️ 数据库写入完成，但未返回插入记录数")
+                return f"✅ 数据库写入完成（{len(data_to_insert)} 条记录）"
+            
+        except Exception as e:
+            error_msg = f"写入数据库失败: {str(e)}"
+            logger.error(f"[SOVCalculatorTool] ❌ {error_msg}")
+            return f"❌ {error_msg}" 

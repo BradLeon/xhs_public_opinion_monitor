@@ -4,6 +4,7 @@ import pandas as pd
 import glob
 from typing import Dict, Any, List, Optional
 from crewai.tools import BaseTool
+from supabase import create_client, Client
 import logging
 from datetime import datetime
 from .brand_normalizer import get_brand_normalizer
@@ -14,13 +15,51 @@ logger = logging.getLogger(__name__)
 class BrandSentimentExtractorTool(BaseTool):
     """品牌情感提取助手 - 基于keyword和brand从DataMergerTool的CSV输出中提取情感倾向和高频词"""
     name: str = "brand_sentiment_extractor"
-    description: str = "基于指定的keyword和brand，从DataMergerTool生成的CSV文件中提取品牌情感倾向和高频词，输出到CSV文件"
+    description: str = "基于指定的keyword和brand，从DataMergerTool生成的CSV文件中提取品牌情感倾向和高频词，输出到CSV文件并写入数据库"
     brand_normalizer: Optional[BrandNormalizer] = None
+    column_mapping: Dict[str, str] = {}
+    
+    # 声明Pydantic字段
+    url: Optional[str] = None
+    key: Optional[str] = None
+    client: Optional[Client] = None
+
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # 初始化品牌标准化器
         self.brand_normalizer = get_brand_normalizer()
+        
+        # 初始化Supabase数据库连接
+        self.url = os.getenv("SEO_SUPABASE_URL")
+        self.key = os.getenv("SEO_SUPABASE_ANON_KEY")
+        
+        if self.url and self.key:
+            self.client = create_client(self.url, self.key)
+        else:
+            logger.warning("Supabase环境变量未设置，将跳过数据库写入")
+            self.client = None
+        
+        self.column_mapping = {
+        "keyword": "搜索关键词",
+        "brand": "监测品牌",
+        "rank": "搜索排名",
+        "note_id": "笔记ID",
+        "type": "笔记类型",
+        "title": "笔记标题",
+        "desc": "笔记描述",
+        "note_url": "笔记URL",
+        "author_id": "作者ID",
+        "nickname": "作者昵称",
+        "last_update_time": "笔记最后更新时间",
+        "liked_count": "点赞数",
+        "collected_count": "收藏数",
+        "comment_count": "评论数",
+        "share_count": "分享数",
+        "brand_emotion": "品牌情感倾向", 
+        "brand_keywords": "品牌高频词",
+        "data_crawler_time": "数据采集时间",
+    }
     
     def _run(self, keyword: str, brand: str = "", output_filename: str = "", csv_input_path: str = "") -> str:
         """
@@ -39,7 +78,7 @@ class BrandSentimentExtractorTool(BaseTool):
             logger.info(f"[BrandSentimentExtractor] 开始提取品牌情感分析数据 - 关键词: {keyword}, 品牌: {brand or '所有品牌'}")
             
             # 1. 读取CSV数据
-            df = self._load_csv_data(keyword, csv_input_path)
+            df = self._load_csv_data(csv_input_path)
             if df is None or df.empty:
                 return f"❌ 未找到关键词 '{keyword}' 的数据文件"
             
@@ -73,10 +112,14 @@ class BrandSentimentExtractorTool(BaseTool):
             # 5. 生成CSV输出
             output_path = self._generate_csv_output(processed_data, keyword, normalized_target_brand, output_filename)
             
+            # 6. 写入数据库
+            db_write_result = self._write_to_database(processed_data, keyword, normalized_target_brand)
+            
             logger.info(f"✅ [BrandSentimentExtractor] 品牌情感分析完成!")
             logger.info(f"📊 处理统计:")
             logger.info(f"   - 总记录数: {len(processed_data)}")
-            logger.info(f"   - 输出文件: {output_path}")
+            logger.info(f"   - CSV输出文件: {output_path}")
+            logger.info(f"   - 数据库写入: {db_write_result}")
             
             return output_path
             
@@ -85,7 +128,7 @@ class BrandSentimentExtractorTool(BaseTool):
             logger.error(error_msg)
             return error_msg
     
-    def _load_csv_data(self, keyword: str, csv_input_path: str = "") -> pd.DataFrame:
+    def _load_csv_data(self, csv_input_path: str = "") -> pd.DataFrame:
         """读取DataMergerTool生成的CSV文件"""
         try:
             if csv_input_path and os.path.exists(csv_input_path):
@@ -182,6 +225,8 @@ class BrandSentimentExtractorTool(BaseTool):
                     "keyword": self._get_safe_field_value(row, "keyword"),
                     "rank": self._get_safe_field_value(row, "rank"),
                     "search_account": self._get_safe_field_value(row, "search_account"),
+                    "last_update_time": self._get_safe_field_value(row, "last_update_time"),
+                    "data_crawler_time": self._get_safe_field_value(row, "data_crawler_time"),
                     
                     # 互动数据
                     "liked_count": self._get_safe_field_value(row, "liked_count"),
@@ -193,7 +238,7 @@ class BrandSentimentExtractorTool(BaseTool):
                 # 处理品牌列表 - 使用安全获取
                 brand_list_raw = self._get_safe_field_value(row, "brand_list", "[]")
                 brand_list = self._parse_json_field(brand_list_raw)
-                logger.info(f"[BrandSentimentExtractor] 品牌列表原始值: '{brand_list_raw}', 解析后: {brand_list}")
+                #logger.info(f"[BrandSentimentExtractor] 品牌列表原始值: '{brand_list_raw}', 解析后: {brand_list}")
                 
                 if isinstance(brand_list, list):
                     note_info["all_brands"] = ", ".join(str(brand) for brand in brand_list if brand)
@@ -203,7 +248,7 @@ class BrandSentimentExtractorTool(BaseTool):
                 # 处理SPU列表 - 使用安全获取
                 spu_list_raw = self._get_safe_field_value(row, "spu_list", "[]")
                 spu_list = self._parse_json_field(spu_list_raw)
-                logger.info(f"[BrandSentimentExtractor] SPU列表原始值: '{spu_list_raw}', 解析后: {spu_list}")
+                #logger.info(f"[BrandSentimentExtractor] SPU列表原始值: '{spu_list_raw}', 解析后: {spu_list}")
                 
                 if isinstance(spu_list, list):
                     note_info["all_spus"] = ", ".join(str(spu) for spu in spu_list if spu)
@@ -223,7 +268,7 @@ class BrandSentimentExtractorTool(BaseTool):
                 # 处理情感字典 - 使用安全获取
                 emotion_dict_raw = self._get_safe_field_value(row, "emotion_dict", "{}")
                 emotion_dict = self._parse_json_field(emotion_dict_raw)
-                logger.info(f"[BrandSentimentExtractor] 情感字典原始值: '{emotion_dict_raw}', 解析后: {emotion_dict}")
+                #logger.info(f"[BrandSentimentExtractor] 情感字典原始值: '{emotion_dict_raw}', 解析后: {emotion_dict}")
                 
                 # 确保brand_list是列表类型
                 safe_brand_list = brand_list if isinstance(brand_list, list) else []
@@ -233,7 +278,7 @@ class BrandSentimentExtractorTool(BaseTool):
                 # 处理评价字典 - 使用安全获取
                 evaluation_dict_raw = self._get_safe_field_value(row, "evaluation_dict", "{}")
                 evaluation_dict = self._parse_json_field(evaluation_dict_raw)
-                logger.info(f"[BrandSentimentExtractor] 评价字典原始值: '{evaluation_dict_raw}', 解析后: {evaluation_dict}")
+                #logger.info(f"[BrandSentimentExtractor] 评价字典原始值: '{evaluation_dict_raw}', 解析后: {evaluation_dict}")
                 
                 brand_evaluation = self._extract_brand_evaluation(evaluation_dict, target_brand, safe_brand_list)
                 note_info.update(brand_evaluation)
@@ -250,8 +295,8 @@ class BrandSentimentExtractorTool(BaseTool):
     def _extract_brand_emotion(self, emotion_dict: Dict, target_brand: str, all_brands: List[str]) -> Dict:
         """提取指定品牌的情感倾向"""
         result = {
-            "target_brand": target_brand,
-            "target_brand_emotion": "",
+            "brand": target_brand,
+            "brand_emotion": "",
         }
         
         if not emotion_dict:
@@ -262,9 +307,9 @@ class BrandSentimentExtractorTool(BaseTool):
             for brand_name, emotion_info in emotion_dict.items():
                 if target_brand.lower() in brand_name.lower():
                     if isinstance(emotion_info, dict):
-                        result["target_brand_emotion"] = emotion_info.get("emotion", "")
+                        result["brand_emotion"] = emotion_info.get("emotion", "")
                     else:
-                        result["target_brand_emotion"] = str(emotion_info)
+                        result["brand_emotion"] = str(emotion_info)
                     break
         
         
@@ -273,7 +318,7 @@ class BrandSentimentExtractorTool(BaseTool):
     def _extract_brand_evaluation(self, evaluation_dict: Dict, target_brand: str, all_brands: List[str]) -> Dict:
         """提取指定品牌的评价关键词"""
         result = {
-            "target_brand_keywords": "",
+            "brand_keywords": "",
         }
         
         if not evaluation_dict:
@@ -284,13 +329,13 @@ class BrandSentimentExtractorTool(BaseTool):
             for brand_name, keywords in evaluation_dict.items():
                 if target_brand.lower() in brand_name.lower():
                     if isinstance(keywords, list):
-                        result["target_brand_keywords"] = ", ".join(keywords)
+                        result["brand_keywords"] = ", ".join(keywords)
                     elif isinstance(keywords, dict):
                         # 如果是字典格式，提取关键词和频次
                         keyword_list = [f"{k}({v})" for k, v in keywords.items()]
-                        result["target_brand_keywords"] = ", ".join(keyword_list)
+                        result["brand_keywords"] = ", ".join(keyword_list)
                     else:
-                        result["target_brand_keywords"] = str(keywords)
+                        result["brand_keywords"] = str(keywords)
                     break
         
         
@@ -300,12 +345,12 @@ class BrandSentimentExtractorTool(BaseTool):
         """生成CSV输出文件"""
         # 生成文件名
         if not output_filename:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            brand_suffix = f"_{brand}" if brand else ""
-            output_filename = f"brand_sentiment_{keyword}{brand_suffix}_{timestamp}.csv"
+            timestamp = datetime.now().strftime("%Y%m%d")
+            brand_suffix = f"{brand}" if brand else ""
+            output_filename = f"品牌舆情_{brand_suffix}_{timestamp}.csv"
         
         # 确保输出目录存在
-        output_dir = "data/export"
+        output_dir = "outputs" + '/' + keyword
         os.makedirs(output_dir, exist_ok=True)
         output_path = os.path.join(output_dir, output_filename)
         
@@ -318,16 +363,91 @@ class BrandSentimentExtractorTool(BaseTool):
             "note_id", "note_url", "title", "desc", "type", 
             "author_id", "nickname", 
             "liked_count", "collected_count", "comment_count", "share_count",
-            "target_brand", "target_brand_emotion", "target_brand_keywords",
+            "brand", "brand_emotion", "brand_keywords",
             "all_brand_emotions", "all_brand_keywords",
         ]
-        
-        # 只保留存在的列
-        existing_columns = [col for col in column_order if col in df.columns]
-        df = df[existing_columns]
+
+        # 筛选column_mapping中存在的列并重命名为中文
+        available_columns = [col for col in self.column_mapping.keys() if col in df.columns]
+        df_copy = df[available_columns].copy()
+        df_copy.rename(columns=self.column_mapping, inplace=True)
         
         # 输出到CSV
-        df.to_csv(output_path, index=False, encoding='utf-8-sig')
+        df_copy.to_csv(output_path, index=False, encoding='utf-8-sig')
         
         logger.info(f"[BrandSentimentExtractor] CSV文件已保存: {output_path}")
-        return output_path 
+        return output_path
+
+    def _write_to_database(self, processed_data: List[Dict], keyword: str, brand: str) -> str:
+        """将数据写入Supabase数据库表xhs_keyword_brand_rank_sentiment_result"""
+        if not self.client:
+            return "❌ 数据库连接未初始化，跳过数据库写入"
+        
+        if not processed_data:
+            return "❌ 没有数据需要写入数据库"
+        
+        try:
+            logger.info(f"[BrandSentimentExtractor] 开始写入 {len(processed_data)} 条记录到数据库...")
+            
+            # 准备要插入的数据
+            data_to_insert = []
+            
+            for note in processed_data:
+                # 处理可能为空或NaN的数值字段
+                def safe_int(value, default=0):
+                    try:
+                        if pd.isna(value) or value == '' or value is None:
+                            return default
+                        return int(float(value))
+                    except (ValueError, TypeError):
+                        return default
+                
+                def safe_str(value, default=""):
+                    try:
+                        if pd.isna(value) or value is None:
+                            return default
+                        return str(value)
+                    except:
+                        return default
+                
+                record = {
+                    "keyword": safe_str(note.get("keyword", keyword)),
+                    "brand": safe_str(brand) if brand else safe_str(note.get("brand", "")),
+                    "rank": safe_int(note.get("rank")),
+                    "note_id": safe_str(note.get("note_id")),
+                    "type": safe_str(note.get("type")),
+                    "title": safe_str(note.get("title")),
+                    "desc": safe_str(note.get("desc")),
+                    "note_url": safe_str(note.get("note_url")),
+                    "author_id": safe_str(note.get("author_id")),
+                    "nickname": safe_str(note.get("nickname")),
+                    "last_update_time": safe_str(note.get("last_update_time")),
+                    "liked_count": safe_int(note.get("liked_count")),
+                    "collected_count": safe_int(note.get("collected_count")),
+                    "comment_count": safe_int(note.get("comment_count")),
+                    "share_count": safe_int(note.get("share_count")),
+                    "brand_emotion": safe_str(note.get("brand_emotion")),
+                    "brand_keywords": safe_str(note.get("brand_keywords")),
+                    "data_crawler_time": safe_str(note.get("data_crawler_time"))
+                }
+                data_to_insert.append(record)
+            
+            # 批量插入数据到目标表
+            response = (
+                self.client.table("xhs_keyword_brand_rank_sentiment_result")
+                .insert(data_to_insert)
+                .execute()
+            )
+            
+            if response.data:
+                success_count = len(response.data)
+                logger.info(f"[BrandSentimentExtractor] ✅ 成功写入 {success_count} 条记录到数据库")
+                return f"✅ 成功写入 {success_count} 条记录到数据库"
+            else:
+                logger.warning(f"[BrandSentimentExtractor] ⚠️ 数据库写入完成，但未返回插入记录数")
+                return f"✅ 数据库写入完成（{len(data_to_insert)} 条记录）"
+            
+        except Exception as e:
+            error_msg = f"写入数据库失败: {str(e)}"
+            logger.error(f"[BrandSentimentExtractor] ❌ {error_msg}")
+            return f"❌ {error_msg}" 

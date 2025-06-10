@@ -68,13 +68,13 @@ def run():
             if not merged_data_path or "失败" in merged_data_path:
                 print(f"   ❌ 数据合并失败: {merged_data_path}")
                 continue
-            
+            '''
             # 步骤2: 提取前100名note_id并进行多模态分析
             print("🤖 步骤2: 前100名多模态分析...")
             analysis_success = _analyze_top_notes(csv_path=merged_data_path, top_n=100)
             if not analysis_success:
                 print("   ⚠️ 多模态分析失败，但继续后续步骤")
-            
+            '''
             # 步骤3: SOV计算
             print("📈 步骤3: SOV计算...")
             _sov_calculator(keyword=keyword)
