@@ -18,7 +18,9 @@ from xhs_public_opinion.tools import (
     SOVCalculatorTool,
     MultimodalBrandAnalyzer,
     SingleNoteWriterTool,
-    BrandSentimentExtractorTool
+    BrandSentimentExtractorTool,
+    SOVVisualizationTool,
+    BrandSentimentVisualizationTool
 )
 
 logger = logging.getLogger(__name__)
@@ -44,7 +46,7 @@ def _check_environment() -> bool:
 def run():
     """
     运行小红书公共舆情分析（优化版本：先排序，再对前100名进行多模态分析）
-    流程：数据合并排序 → 前100名多模态分析 → SOV统计 → 品牌情感分析
+    流程：数据合并排序 → 前100名多模态分析 → SOV统计 → 品牌情感分析 → 可视化图表生成
     """
     try:
         # 环境检查
@@ -57,32 +59,42 @@ def run():
         
         # 处理关键词列表
         keywords = ["丰盈蓬松洗发水", "缕灵", "livingproof"]
-        
+        target_brand = "Living Proof"
+
         for keyword in keywords:
             print(f"\n🔍 处理关键词: {keyword}")
             print("-" * 40)
             
+            '''
             # 步骤1: 数据合并和排序
             print("📊 步骤1: 数据合并和排序...")
             merged_data_path = _basic_data_merger(keyword=keyword)
             if not merged_data_path or "失败" in merged_data_path:
                 print(f"   ❌ 数据合并失败: {merged_data_path}")
                 continue
-            '''
+            
             # 步骤2: 提取前100名note_id并进行多模态分析
             print("🤖 步骤2: 前100名多模态分析...")
             analysis_success = _analyze_top_notes(csv_path=merged_data_path, top_n=100)
             if not analysis_success:
                 print("   ⚠️ 多模态分析失败，但继续后续步骤")
-            '''
+            
             # 步骤3: SOV计算
             print("📈 步骤3: SOV计算...")
             _sov_calculator(keyword=keyword)
             
             # 步骤4: 品牌情感分析
             print("💝 步骤4: 品牌情感分析...")
-            _extract_brand_sentiment(keyword=keyword, brand="Living Proof", csv_input_path=merged_data_path)
-            
+            _extract_brand_sentiment(keyword=keyword, brand=target_brand, csv_input_path=merged_data_path)
+            '''
+            # 步骤5: SOV可视化图表生成
+            print("📊 步骤5: SOV可视化图表生成...")
+            _sov_visualization(keyword=keyword, target_brand=target_brand)
+
+            # 步骤6: 品牌情感分析可视化图表生成
+            print("💝 步骤6: 品牌情感分析可视化图表生成...")
+            _brand_sentiment_visualization(keyword=keyword, target_brand=target_brand)
+
             print(f"✅ 关键词 '{keyword}' 处理完成")
         
         print("\n" + "="*60)
@@ -235,6 +247,35 @@ def _extract_brand_sentiment(keyword: str, brand: str = "", csv_input_path: str 
         return True
     else:
         print(f"   ❌ 品牌情感分析失败: {res}")
+        return False
+
+def _sov_visualization(keyword: str, target_brand: str = "") -> bool:
+    """生成SOV可视化图表"""
+    target_info = f" (目标品牌: {target_brand})" if target_brand else ""
+    print(f"   📊 生成SOV可视化图表{target_info}...")
+    
+    sov_visualization_tool = SOVVisualizationTool()
+    res = sov_visualization_tool._run(keyword=keyword, target_brand=target_brand)
+    
+    if "✅" in res:
+        print("   ✅ SOV图表生成完成")
+        return True
+    else:
+        print(f"   ❌ SOV图表生成失败: {res}")
+        return False
+
+def _brand_sentiment_visualization(keyword: str, target_brand: str) -> bool:
+    """生成品牌情感分析可视化图表"""
+    print(f"   💝 生成品牌情感分析图表 - {target_brand}...")
+    
+    brand_sentiment_visualization_tool = BrandSentimentVisualizationTool()
+    res = brand_sentiment_visualization_tool._run(keyword=keyword, target_brand=target_brand)
+    
+    if "✅" in res:
+        print("   ✅ 品牌情感分析图表生成完成")
+        return True
+    else:
+        print(f"   ❌ 品牌情感分析图表生成失败: {res}")
         return False
 
 def train():

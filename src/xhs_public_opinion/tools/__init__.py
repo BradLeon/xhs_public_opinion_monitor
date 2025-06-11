@@ -4,6 +4,8 @@ from .multimodal_analyzer import MultimodalBrandAnalyzer
 from .data_merger_tool import DataMergerTool
 from .sov_calculator_tool import SOVCalculatorTool
 from .brand_sentiment_extractor import BrandSentimentExtractorTool
+from .sov_visualization_tool import SOVVisualizationTool
+from .brand_sentiment_visualization_tool import BrandSentimentVisualizationTool
 
 __all__ = [
     'DatabaseReaderTool',
@@ -14,5 +16,7 @@ __all__ = [
     'MultimodalBrandAnalyzer',
     'DataMergerTool',
     'SOVCalculatorTool',
-    'BrandSentimentExtractorTool'
+    'BrandSentimentExtractorTool',
+    'SOVVisualizationTool',
+    'BrandSentimentVisualizationTool'
 ]
