@@ -146,12 +146,8 @@ class SOVVisualizationTool(BaseTool):
                     df = pd.DataFrame(response.data)
                     df['created_at'] = pd.to_datetime(df['created_at'])
                     df['date'] = df['created_at'].dt.date
-                    # test
-                    logger.info(f"tier: {t}, df.head: {df.head()}")
-                    
+          
                     unique_dates = sorted(df['date'].unique(), reverse=True)
-                    # test
-                    logger.info(f"tier: {t}, unique_dates: {unique_dates}")
                     
                     if len(unique_dates) >= 1:
                         # 最新日期的数据
@@ -159,8 +155,7 @@ class SOVVisualizationTool(BaseTool):
                         current_df = df[df['date'] == current_date]
                         current_df = current_df.sort_values('sov_percentage', ascending=False)
                         current_data[t] = current_df.head(10).to_dict('records')
-                        # test
-                        logger.info(f"tier: {t}, current_data: {current_data[t]}")
+             
                     
                     if len(unique_dates) >= 2:
                         # 第二新日期的数据
@@ -168,8 +163,7 @@ class SOVVisualizationTool(BaseTool):
                         previous_df = df[df['date'] == previous_date]
                         previous_df = previous_df.sort_values('sov_percentage', ascending=False)
                         previous_data[t] = previous_df.head(10).to_dict('records')
-                        # test
-                        logger.info(f"tier: {t}, previous_data: {previous_data[t]}")
+                  
             
             # 返回所有档位的数据字典
             return current_data, previous_data if previous_data else None
