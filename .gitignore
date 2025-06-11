@@ -1,15 +1,15 @@
-   # 忽略 data 目录
-   data/
-   /data/
-   
-   # 忽略 outputs 目录
-   outputs/
-   /outputs/
+# 忽略 data 目录
+data/
+/data/
 
-   # Environment variable
-   .env
-   /env
-   /env/
-   /env/env.py
-   /env/env.pyc
-   /env/env.pyo
+# 忽略 outputs 目录
+outputs/
+/outputs/
+
+# Environment variable
+.env
+/env
+/env/
+/env/env.py
+/env/env.pyc
+/env/env.pyo
