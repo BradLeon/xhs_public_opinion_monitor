@@ -1,42 +1,34 @@
 import os
 import json
+import glob
 import pandas as pd
-import numpy as np
-from typing import List, Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, List
 from crewai.tools import BaseTool
-from supabase import create_client, Client
 import logging
 from datetime import datetime
-import glob
 
 # 导入品牌标准化工具
 from .brand_normalizer import get_brand_normalizer
+from ..store import SupabaseDatabase, FileManager
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class SOVCalculatorTool(BaseTool):
+class SOVCalculatorTool:
     """SOV计算工具 - 计算各品牌在关键词下的声量占比（Share of Voice）"""
     name: str = "sov_calculator"
     description: str = "基于合并后的CSV数据，计算各品牌在指定关键词下的SOV（声量占比），支持分档位计算并写入数据库"
     
-    # 声明Pydantic字段
-    url: Optional[str] = None
-    key: Optional[str] = None
-    client: Optional[Client] = None
-    
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        # 初始化Supabase数据库连接
-        self.url = os.getenv("SEO_SUPABASE_URL")
-        self.key = os.getenv("SEO_SUPABASE_ANON_KEY")
         
-        if self.url and self.key:
-            self.client = create_client(self.url, self.key)
-        else:
-            logger.warning("Supabase环境变量未设置，将跳过数据库写入")
-            self.client = None
+        # 初始化品牌标准化器
+        self.brand_normalizer = get_brand_normalizer()
+        
+        # 初始化数据库连接和文件管理器
+        self.db = SupabaseDatabase()
+        self.file_manager = FileManager()
     
     def _run(self, keyword: str, input_data_dir: str = "data/export", output_data_dir: str = "outputs", method: str = "weighted") -> str:
         """
@@ -95,14 +87,14 @@ class SOVCalculatorTool(BaseTool):
     
     def _find_csv_file(self, keyword: str, data_dir: str) -> Optional[str]:
         """查找指定关键词的最新CSV文件"""
-        pattern = os.path.join(data_dir+'/'+keyword, f"merged_data_*.csv")
-        files = glob.glob(pattern)
+        pattern = f"{data_dir}/{keyword}/merged_data_*.csv"
+        files = self.file_manager.find_files_by_pattern(pattern)
         
         if not files:
             return None
         
         # 返回最新的文件
-        latest_file = max(files, key=os.path.getctime)
+        latest_file = self.file_manager.find_latest_file(files)
         logger.info(f"[SOVCalculatorTool] 找到数据文件: {latest_file}")
         return latest_file
     
@@ -125,12 +117,12 @@ class SOVCalculatorTool(BaseTool):
                 
                 # 解析品牌列表 - 处理可能的双重JSON编码
                 if isinstance(brand_list_str, str):
-                    brands = json.loads(brand_list_str)
+                    brands = self.file_manager.parse_json_string(brand_list_str)
                     
                     # 处理双重编码的情况
                     if isinstance(brands, str):
                         try:
-                            brands = json.loads(brands)
+                            brands = self.file_manager.parse_json_string(brands)
                             logger.debug(f"双重解码成功: {brands}")
                         except (json.JSONDecodeError, TypeError):
                             logger.warning(f"双重解码失败: {brands}")
@@ -150,7 +142,7 @@ class SOVCalculatorTool(BaseTool):
                 for brand in brands:
                     if brand and brand.strip():
                         # 标准化品牌名
-                        brand_normalizer = get_brand_normalizer()
+                        brand_normalizer = self.brand_normalizer
                         normalized_brand = brand_normalizer.normalize_brand_name(brand.strip())
                         
                         if normalized_brand:  # 只有标准化后不为空的品牌名才处理
@@ -326,8 +318,8 @@ class SOVCalculatorTool(BaseTool):
     def _save_tiered_sov_results(self, tier_results: Dict[str, Any], keyword: str, method: str, data_dir: str) -> str:
         """保存分档位SOV计算结果到CSV"""
         # 确保输出目录存在
-        output_dir = os.path.join(data_dir, keyword)
-        os.makedirs(output_dir, exist_ok=True)
+        output_dir = self.file_manager.build_path(data_dir, keyword)
+        self.file_manager.ensure_directory(output_dir)
         
         # 生成时间戳
         timestamp = datetime.now().strftime("%Y%m%d")
@@ -356,7 +348,7 @@ class SOVCalculatorTool(BaseTool):
         if all_sov_data:
             # CSV文件名
             csv_filename = f"SOV_all_tiers_{method}_{timestamp}.csv"
-            csv_filepath = os.path.join(output_dir, csv_filename)
+            csv_filepath = self.file_manager.build_path(output_dir, csv_filename)
             
             # 创建DataFrame
             sov_df = pd.DataFrame(all_sov_data)
@@ -377,14 +369,14 @@ class SOVCalculatorTool(BaseTool):
             sov_df = sov_df[available_columns]
             
             # 保存CSV
-            sov_df.to_csv(csv_filepath, index=False, encoding='utf-8-sig')
+            self.file_manager.save_csv(sov_df, csv_filepath)
             result_files.append(csv_filepath)
             
             logger.info(f"[SOVCalculatorTool] 所有档位SOV结果已保存: {csv_filepath}")
         
         # 同时保存合并的JSON文件
         json_filename = f"SOV_all_tiers_{method}_{timestamp}.json"
-        json_filepath = os.path.join(output_dir, json_filename)
+        json_filepath = self.file_manager.build_path(output_dir, json_filename)
         
         # 添加元数据
         tier_results['metadata'] = {
@@ -394,9 +386,7 @@ class SOVCalculatorTool(BaseTool):
             'tool_version': '2.0'
         }
         
-        with open(json_filepath, 'w', encoding='utf-8') as f:
-            json.dump(tier_results, f, ensure_ascii=False, indent=2)
-        
+        self.file_manager.save_json(tier_results, json_filepath)
         result_files.append(json_filepath)
         logger.info(f"[SOVCalculatorTool] 合并JSON结果已保存: {json_filepath}")
         
@@ -512,7 +502,7 @@ class SOVCalculatorTool(BaseTool):
     
     def _write_sov_to_database(self, tier_results: Dict[str, Any], keyword: str, method: str) -> str:
         """将SOV结果写入Supabase数据库表xhs_keyword_sov_result"""
-        if not self.client:
+        if not self.db.is_connected():
             return "❌ 数据库连接未初始化，跳过数据库写入"
         
         try:
@@ -530,74 +520,40 @@ class SOVCalculatorTool(BaseTool):
                     continue
                 
                 for sov_item in tier_data['sov_data']:
-                    # 处理可能为空或NaN的数值字段
-                    def safe_float(value, default=0.0):
-                        try:
-                            if pd.isna(value) or value == '' or value is None:
-                                return default
-                            return float(value)
-                        except (ValueError, TypeError):
-                            return default
-                    
-                    def safe_int(value, default=0):
-                        try:
-                            if pd.isna(value) or value == '' or value is None:
-                                return default
-                            return int(float(value))
-                        except (ValueError, TypeError):
-                            return default
-                    
-                    def safe_str(value, default=""):
-                        try:
-                            if pd.isna(value) or value is None:
-                                return default
-                            return str(value)
-                        except:
-                            return default
-                    
                     record = {
-                        "keyword": safe_str(keyword),
-                        #"method": safe_str(method),
-                        #"tier": safe_str(tier_name),
-                        "tier_limit": safe_int(tier_data.get('tier_limit')),
-                        "brand": safe_str(sov_item.get('brand')),
-                        "rank": safe_int(sov_item.get('rank')),
-                        "sov_percentage": safe_float(sov_item.get('sov_percentage')),
-                        "mention_count": safe_int(sov_item.get('mention_count')),
-                        "total_records": safe_int(tier_data.get('total_records')),
-                        "unique_brands": safe_int(tier_data.get('unique_brands')),
-                        #"created_at": datetime.now().isoformat(),
-                        #"updated_at": datetime.now().isoformat()
+                        "keyword": self.db.safe_str(keyword),
+                        "tier_limit": self.db.safe_int(tier_data.get('tier_limit')),
+                        "brand": self.db.safe_str(sov_item.get('brand')),
+                        "rank": self.db.safe_int(sov_item.get('rank')),
+                        "sov_percentage": self.db.safe_float(sov_item.get('sov_percentage')),
+                        "mention_count": self.db.safe_int(sov_item.get('mention_count')),
+                        "total_records": self.db.safe_int(tier_data.get('total_records')),
+                        "unique_brands": self.db.safe_int(tier_data.get('unique_brands')),
                     }
                     
                     # 根据计算方法添加特定字段
                     if method == 'weighted':
-                        record["weighted_score"] = safe_float(sov_item.get('weighted_score'))
-                        record["avg_rank"] = safe_float(sov_item.get('avg_rank'))
+                        record["weighted_score"] = self.db.safe_float(sov_item.get('weighted_score'))
+                        record["avg_rank"] = self.db.safe_float(sov_item.get('avg_rank'))
                     elif method == 'engagement':
-                        record["total_engagement"] = safe_int(sov_item.get('total_engagement'))
-                        record["avg_engagement_per_note"] = safe_float(sov_item.get('avg_engagement_per_note'))
-                        record["avg_rank"] = safe_float(sov_item.get('avg_rank'))
+                        record["total_engagement"] = self.db.safe_int(sov_item.get('total_engagement'))
+                        record["avg_engagement_per_note"] = self.db.safe_float(sov_item.get('avg_engagement_per_note'))
+                        record["avg_rank"] = self.db.safe_float(sov_item.get('avg_rank'))
                     
                     data_to_insert.append(record)
             
             if not data_to_insert:
                 return "❌ 没有SOV数据需要写入数据库"
             
-            # 批量插入数据到目标表
-            response = (
-                self.client.table("xhs_keyword_sov_result")
-                .insert(data_to_insert)
-                .execute()
-            )
+            # 使用统一的数据库接口批量插入
+            result = self.db.batch_insert_sov_data(data_to_insert)
             
-            if response.data:
-                success_count = len(response.data)
-                logger.info(f"[SOVCalculatorTool] ✅ 成功写入 {success_count} 条SOV记录到数据库")
-                return f"✅ 成功写入 {success_count} 条SOV记录到数据库"
+            if result['success']:
+                logger.info(f"[SOVCalculatorTool] ✅ 成功写入 {result['inserted_count']} 条SOV记录到数据库")
+                return f"✅ 成功写入 {result['inserted_count']} 条SOV记录到数据库"
             else:
-                logger.warning(f"[SOVCalculatorTool] ⚠️ 数据库写入完成，但未返回插入记录数")
-                return f"✅ 数据库写入完成（{len(data_to_insert)} 条记录）"
+                logger.error(f"[SOVCalculatorTool] ❌ {result['error']}")
+                return f"❌ {result['error']}"
             
         except Exception as e:
             error_msg = f"写入数据库失败: {str(e)}"

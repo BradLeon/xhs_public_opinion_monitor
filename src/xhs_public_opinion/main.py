@@ -12,16 +12,14 @@ import logging
 
 from xhs_public_opinion.crew import XhsPublicOpinionCrew
 from xhs_public_opinion.tools import (
-    DatabaseReaderTool,
-    SpecificNotesReaderTool,
     DataMergerTool,
     SOVCalculatorTool,
     MultimodalBrandAnalyzer,
-    SingleNoteWriterTool,
     BrandSentimentExtractorTool,
     SOVVisualizationTool,
     BrandSentimentVisualizationTool
 )
+from xhs_public_opinion.store.database import SupabaseDatabase
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +63,7 @@ def run():
             print(f"\n🔍 处理关键词: {keyword}")
             print("-" * 40)
             
-            '''
+            
             # 步骤1: 数据合并和排序
             print("📊 步骤1: 数据合并和排序...")
             merged_data_path = _basic_data_merger(keyword=keyword)
@@ -74,11 +72,13 @@ def run():
                 continue
             
             # 步骤2: 提取前100名note_id并进行多模态分析
+            '''
             print("🤖 步骤2: 前100名多模态分析...")
             analysis_success = _analyze_top_notes(csv_path=merged_data_path, top_n=100)
             if not analysis_success:
                 print("   ⚠️ 多模态分析失败，但继续后续步骤")
-            
+            '''
+
             # 步骤3: SOV计算
             print("📈 步骤3: SOV计算...")
             _sov_calculator(keyword=keyword)
@@ -86,7 +86,7 @@ def run():
             # 步骤4: 品牌情感分析
             print("💝 步骤4: 品牌情感分析...")
             _extract_brand_sentiment(keyword=keyword, brand=target_brand, csv_input_path=merged_data_path)
-            '''
+            
             # 步骤5: SOV可视化图表生成
             print("📊 步骤5: SOV可视化图表生成...")
             _sov_visualization(keyword=keyword, target_brand=target_brand)
@@ -96,6 +96,7 @@ def run():
             _brand_sentiment_visualization(keyword=keyword, target_brand=target_brand)
 
             print(f"✅ 关键词 '{keyword}' 处理完成")
+            
         
         print("\n" + "="*60)
         print("🎉 所有关键词处理完成!")
@@ -136,6 +137,12 @@ def _get_top_note_ids_from_csv(csv_path: str, top_n: int = 100) -> List[str]:
 def _analyze_top_notes(csv_path: str, top_n: int = 100) -> bool:
     """对前N名笔记进行多模态分析"""
     try:
+        # 初始化数据库连接
+        db = SupabaseDatabase()
+        if not db.is_connected():
+            print("   ❌ 数据库连接失败")
+            return False
+        
         # 1. 从CSV中提取前N名的note_id
         top_note_ids = _get_top_note_ids_from_csv(csv_path, top_n)
         if not top_note_ids:
@@ -144,9 +151,8 @@ def _analyze_top_notes(csv_path: str, top_n: int = 100) -> bool:
         
         print(f"   📋 提取到前{top_n}名笔记，共{len(top_note_ids)}个")
         
-        # 2. 从数据库读取这些笔记的详细数据
-        specific_reader = SpecificNotesReaderTool()
-        raw_data = specific_reader._run(top_note_ids)
+        # 2. 直接从数据库读取这些笔记的详细数据
+        raw_data = db.get_specific_notes_json(top_note_ids)
         
         if not raw_data or "没有找到" in raw_data:
             print("   ❌ 无法从数据库读取笔记详情")
@@ -169,8 +175,6 @@ def _analyze_top_notes(csv_path: str, top_n: int = 100) -> bool:
             print("   ❌ 多模态分析器初始化失败，请检查DASHSCOPE_API_KEY")
             return False
         
-        db_writer = SingleNoteWriterTool()
-        
         # 5. 处理每条笔记
         success_count = 0
         failed_count = 0
@@ -192,16 +196,27 @@ def _analyze_top_notes(csv_path: str, top_n: int = 100) -> bool:
                     failed_count += 1
                     continue
                 
-                # 添加笔记ID并写入数据库
+                # 添加笔记ID并直接写入数据库
                 parsed_result['note_id'] = note['note_id']
-                write_result = db_writer._run(parsed_result)
+                write_result = db.update_single_note_analysis_json(parsed_result)
                 
-                if "✅" in write_result:
-                    success_count += 1
-                    print(f"      ✅ 分析完成")
-                else:
-                    failed_count += 1
-                    print(f"      ❌ 写入失败: {write_result}")
+                # 解析写入结果
+                try:
+                    write_response = json.loads(write_result)
+                    if write_response.get('success', False):
+                        success_count += 1
+                        print(f"      ✅ 分析完成")
+                    else:
+                        failed_count += 1
+                        print(f"      ❌ 写入失败: {write_response.get('message', '未知错误')}")
+                except:
+                    # 如果解析失败，根据返回内容判断
+                    if "✅" in write_result:
+                        success_count += 1
+                        print(f"      ✅ 分析完成")
+                    else:
+                        failed_count += 1
+                        print(f"      ❌ 写入失败: {write_result}")
                     
             except Exception as e:
                 failed_count += 1

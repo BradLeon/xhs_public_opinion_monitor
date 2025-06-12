@@ -4,13 +4,14 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 from typing import Dict, Any, List, Optional, Tuple
-from supabase import create_client, Client
 from crewai.tools import BaseTool
 import logging
 from datetime import datetime
 import matplotlib.patches as mpatches
 import warnings
 import matplotlib.font_manager as fm
+
+from ..store import SupabaseDatabase, FileManager
 
 # 设置中文字体和样式
 def setup_chinese_fonts():
@@ -56,27 +57,16 @@ warnings.filterwarnings('ignore')
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class BrandSentimentVisualizationTool(BaseTool):
+class BrandSentimentVisualizationTool:
     """品牌情感分析可视化工具 - 生成目标品牌情感倾向舆情图表"""
     name: str = "brand_sentiment_visualization"
     description: str = "基于数据库情感数据生成目标品牌在不同档位的情感倾向舆情可视化图表"
     
-    # 声明Pydantic字段
-    supabase_url: Optional[str] = None
-    supabase_key: Optional[str] = None
-    client: Optional[Client] = None
-    
-    def __init__(self):
-        super().__init__()
-        # 初始化Supabase客户端
-        self.supabase_url = os.getenv("SEO_SUPABASE_URL")
-        self.supabase_key = os.getenv("SEO_SUPABASE_ANON_KEY")
-        
-        if self.supabase_url and self.supabase_key:
-            self.client = create_client(self.supabase_url, self.supabase_key)
-        else:
-            logger.error("未设置Supabase环境变量，无法使用数据库功能")
-            self.client = None
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # 初始化数据库连接和文件管理器
+        self.db = SupabaseDatabase()
+        self.file_manager = FileManager()
     
     def _run(self, keyword: str, target_brand: str, output_dir: str = "outputs") -> str:
         """
@@ -91,7 +81,7 @@ class BrandSentimentVisualizationTool(BaseTool):
             生成的图表文件路径
         """
         try:
-            if not self.client:
+            if not self.db.client:
                 return "❌ 数据库连接失败，请检查环境变量配置"
             
             if not target_brand:
@@ -117,10 +107,6 @@ class BrandSentimentVisualizationTool(BaseTool):
     def _load_sentiment_data_from_db(self, keyword: str, target_brand: str) -> Tuple[Optional[Dict], Optional[Dict]]:
         """从数据库加载情感数据"""
         try:
-            if not self.client:
-                logger.error("Supabase客户端未初始化")
-                return None, None
-            
             current_data = {}
             previous_data = {}
             
@@ -128,20 +114,11 @@ class BrandSentimentVisualizationTool(BaseTool):
             tiers = [20, 50, 100]  # TOP20, TOP50, TOP100
             
             for tier in tiers:
-                # 查询该品牌在该档位的情感数据
-                response = (
-                    self.client.table("xhs_keyword_brand_rank_sentiment_result")
-                    .select("*")
-                    .eq("keyword", keyword)
-                    .eq("brand", target_brand)
-                    .lte("rank", tier)  # rank <= tier
-                    .order("created_at", desc=True)
-                    .limit(200)  # 获取更多数据以便分组
-                    .execute()
-                )
+                # 使用统一的数据库方法获取数据
+                raw_data = self.db.get_sentiment_visualization_data(keyword, target_brand, max_rank=tier, limit=200)
                 
-                if response.data:
-                    df = pd.DataFrame(response.data)
+                if raw_data:
+                    df = pd.DataFrame(raw_data)
                     df['created_at'] = pd.to_datetime(df['created_at'])
                     df['date'] = df['created_at'].dt.date
                     
@@ -193,8 +170,8 @@ class BrandSentimentVisualizationTool(BaseTool):
         """生成情感分析图表"""
         
         # 创建输出目录
-        chart_dir = os.path.join(output_dir, keyword, "charts")
-        os.makedirs(chart_dir, exist_ok=True)
+        chart_dir = self.file_manager.build_path(output_dir, keyword, "charts")
+        self.file_manager.ensure_directory(chart_dir)
         
         # 创建图表 - 1行3列布局，增加高度
         fig, axes = plt.subplots(1, 3, figsize=(24, 12))
@@ -313,14 +290,15 @@ class BrandSentimentVisualizationTool(BaseTool):
         # 添加图例和说明
         self._add_sentiment_annotations(fig, keyword, target_brand, current_data, previous_data)
         
-        # 保存图表
+        # 生成文件名并保存
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        chart_filename = f"Sentiment_{target_brand}_{keyword}_{timestamp}.png"
-        chart_path = os.path.join(chart_dir, chart_filename)
+        chart_filename = f"BrandSentiment_{target_brand}_{keyword}_{timestamp}.png"
+        chart_path = self.file_manager.build_path(chart_dir, chart_filename)
         
         plt.savefig(chart_path, dpi=300, bbox_inches='tight', facecolor='white', edgecolor='none')
         plt.close()
         
+        logger.info(f"品牌情感分析图表已保存: {chart_path}")
         return chart_path
     
     def _add_sentiment_annotations(self, fig, keyword: str, target_brand: str, 

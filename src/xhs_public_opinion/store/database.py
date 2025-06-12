@@ -1,22 +1,15 @@
 """
-⚠️ 【已弃用】此文件已迁移至数据交互层
-请使用以下新的导入路径：
-- SupabaseDatabase: from ..store.database import SupabaseDatabase  
-- 数据库工具类: from .database_service_tools import DatabaseReaderTool, SingleNoteWriterTool, SpecificNotesReaderTool
-
-此文件将在后续版本中移除。
+数据库操作类 - 数据交互层核心
+统一管理所有Supabase数据库操作
 """
 
 import os
 import json
 import pandas as pd
 from typing import Dict, Any, Optional, List
-from crewai.tools import BaseTool
 from supabase import create_client
 import logging
-from datetime import datetime
-
-from ..store.database import SupabaseDatabase
+from datetime import datetime, timedelta
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -126,23 +119,82 @@ class SupabaseDatabase:
         except Exception as e:
             logger.error(f"更新笔记:{note_id} 分析结果失败: {e}")
             return False
-    
+            
     # ==================== 搜索结果操作 ====================
     
     def get_search_results_by_keyword(self, keyword: str) -> List[Dict[str, Any]]:
-        """根据关键词获取搜索结果"""
+        """根据关键词获取搜索结果（限定本周内的数据）"""
         if not self.client:
             logger.error("数据库客户端未初始化")
             return []
             
         try:
+            # 计算本周的开始时间（周一00:00:00）
+            today = datetime.now()
+            # 计算当前日期是周几（0=周一，6=周日）
+            days_since_monday = today.weekday()
+            # 计算本周一的日期
+            monday = today - timedelta(days=days_since_monday)
+            # 设置为周一的00:00:00
+            week_start = monday.replace(hour=0, minute=0, second=0, microsecond=0)
+            
+            logger.info(f"[Database] 查询关键词'{keyword}'本周内的搜索结果，时间范围：{week_start} 至今")
+            
             response = (
                 self.client.table("xhs_search_result")
                 .select("*")
                 .eq("keyword", keyword)
+                .gte("created_at", week_start.isoformat())  # 大于等于本周一开始时间
                 .order("rank", desc=False)  # 按排名升序排列
                 .execute()
             )
+            
+            logger.info(f"[Database] 查询到 {len(response.data)} 条本周内的搜索结果")
+            return response.data
+        except Exception as e:
+            logger.error(f"获取搜索结果失败: {e}")
+            return []
+    
+    def get_search_results_by_keyword_with_date_range(
+        self, 
+        keyword: str, 
+        start_date: Optional[datetime] = None, 
+        end_date: Optional[datetime] = None
+    ) -> List[Dict[str, Any]]:
+        """根据关键词和时间范围获取搜索结果（提供自定义时间范围）
+        
+        Args:
+            keyword: 搜索关键词
+            start_date: 开始时间（可选，默认为本周一）
+            end_date: 结束时间（可选，默认为当前时间）
+        """
+        if not self.client:
+            logger.error("数据库客户端未初始化")
+            return []
+            
+        try:
+            # 如果没有提供开始时间，默认使用本周一
+            if start_date is None:
+                today = datetime.now()
+                days_since_monday = today.weekday()
+                monday = today - timedelta(days=days_since_monday)
+                start_date = monday.replace(hour=0, minute=0, second=0, microsecond=0)
+            
+            # 构建查询
+            query = (
+                self.client.table("xhs_search_result")
+                .select("*")
+                .eq("keyword", keyword)
+                .gte("created_at", start_date.isoformat())
+            )
+            
+            # 如果提供了结束时间，添加结束时间条件
+            if end_date is not None:
+                query = query.lte("created_at", end_date.isoformat())
+            
+            response = query.order("rank", desc=False).execute()
+            
+            logger.info(f"[Database] 查询到 {len(response.data)} 条指定时间范围内的搜索结果")
             return response.data
         except Exception as e:
             logger.error(f"获取搜索结果失败: {e}")
@@ -348,27 +400,30 @@ class SupabaseDatabase:
             logger.error(f"获取情感分析可视化数据失败: {e}")
             return []
 
-# ==================== 工具类 ====================
-
-class DatabaseReaderTool(BaseTool):
-    """数据库读取工具"""
-    name: str = "database_reader"
-    description: str = "从Supabase数据库读取小红书笔记数据，支持指定读取数量限制"
+    # ==================== 应用层工具方法（取代database_service_tools.py） ====================
     
-    def _run(self, batch_size: str = "") -> str:
-        """读取未处理的笔记数据"""
+    def get_unprocessed_notes_json(self, batch_size: str = "10") -> str:
+        """
+        读取未处理的笔记数据（JSON格式输出）
+        取代 DatabaseReaderTool._run()
+        """
         try:
-            logger.info(f"[DatabaseReaderTool] 准备读取 {batch_size} 条未处理的笔记数据")
+            # 处理batch_size参数
+            try:
+                limit = int(batch_size) if batch_size else 10
+            except (ValueError, TypeError):
+                limit = 10
             
-            db = SupabaseDatabase()
-            notes = db.get_unprocessed_notes(batch_size)
+            logger.info(f"[Database] 准备读取 {limit} 条未处理的笔记数据")
+            
+            notes = self.get_unprocessed_notes(limit)
             
             if not notes:
-                return "没有找到未处理的笔记数据"
+                return json.dumps({"error": "没有找到未处理的笔记数据"}, ensure_ascii=False)
             
             result = {
                 "total_count": len(notes),
-                "requested_limit": batch_size,
+                "requested_limit": limit,
                 "notes": notes
             }
 
@@ -376,53 +431,50 @@ class DatabaseReaderTool(BaseTool):
             
         except Exception as e:
             logger.error(f"读取数据失败: {e}")
-            return f"读取数据失败: {str(e)}"
-
-class SingleNoteWriterTool(BaseTool):
-    """单条笔记分析结果写入工具"""
-    name: str = "single_note_writer"
-    description: str = "将单条笔记的分析结果写入数据库"
-
-    def _run(self, result_dict: Dict) -> str:
-        """写入单条笔记的分析结果"""
+            return json.dumps({"error": f"读取数据失败: {str(e)}"}, ensure_ascii=False)
+    
+    def update_single_note_analysis_json(self, result_dict: Dict) -> str:
+        """
+        写入单条笔记的分析结果（JSON格式输出）
+        取代 SingleNoteWriterTool._run()
+        """
         try:
-            logger.info("[SingleNoteWriterTool] 开始写入单条分析结果")
+            logger.info("[Database] 开始写入单条分析结果")
             
             note_id = result_dict.get('note_id')
             if not note_id:
-                return "❌ 缺少note_id字段"
+                return json.dumps({"success": False, "message": "❌ 缺少note_id字段"}, ensure_ascii=False)
             
-            db = SupabaseDatabase()
-            success = db.update_analysis_result(note_id, result_dict)
+            success = self.update_analysis_result(note_id, result_dict)
             
             if success:
-                logger.info(f"[SingleNoteWriterTool] ✅ 成功写入笔记分析结果: {note_id}")
-                return f"✅ 成功写入笔记分析结果: {note_id}"
+                logger.info(f"[Database] ✅ 成功写入笔记分析结果: {note_id}")
+                return json.dumps({
+                    "success": True, 
+                    "message": f"✅ 成功写入笔记分析结果: {note_id}"
+                }, ensure_ascii=False)
             else:
                 error_msg = "数据库写入失败"
-                logger.error(f"[SingleNoteWriterTool] ❌ {error_msg}")
-                return f"❌ {error_msg}"
+                logger.error(f"[Database] ❌ {error_msg}")
+                return json.dumps({"success": False, "message": f"❌ {error_msg}"}, ensure_ascii=False)
                 
         except Exception as e:
             error_msg = f"写入异常: {str(e)}"
-            logger.error(f"[SingleNoteWriterTool] ❌ {error_msg}")
-            return f"❌ {error_msg}"
-
-class SpecificNotesReaderTool(BaseTool):
-    """特定笔记读取工具"""
-    name: str = "specific_notes_reader"
-    description: str = "根据note_id列表从Supabase数据库读取特定的小红书笔记数据"
+            logger.error(f"[Database] ❌ {error_msg}")
+            return json.dumps({"success": False, "message": f"❌ {error_msg}"}, ensure_ascii=False)
     
-    def _run(self, note_ids: list) -> str:
-        """读取特定note_id的笔记数据"""
+    def get_specific_notes_json(self, note_ids: List[str]) -> str:
+        """
+        根据note_id列表读取特定笔记数据（JSON格式输出）
+        取代 SpecificNotesReaderTool._run()
+        """
         try:
-            logger.info(f"[SpecificNotesReaderTool] 准备读取 {len(note_ids)} 条特定笔记数据")
+            logger.info(f"[Database] 准备读取 {len(note_ids)} 条特定笔记数据")
             
-            db = SupabaseDatabase()
-            notes = db.get_unprocessed_notes_by_ids(note_ids)
+            notes = self.get_unprocessed_notes_by_ids(note_ids)
             
             if not notes:
-                return "没有找到指定的笔记数据"
+                return json.dumps({"error": "没有找到指定的笔记数据"}, ensure_ascii=False)
             
             result = {
                 "total_count": len(notes),
@@ -434,6 +486,4 @@ class SpecificNotesReaderTool(BaseTool):
             
         except Exception as e:
             logger.error(f"读取特定笔记数据失败: {e}")
-            return f"读取特定笔记数据失败: {str(e)}"
-        
-    
+            return json.dumps({"error": f"读取特定笔记数据失败: {str(e)}"}, ensure_ascii=False) 

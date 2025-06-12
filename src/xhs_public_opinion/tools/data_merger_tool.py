@@ -3,43 +3,33 @@ import json
 import pandas as pd
 from typing import List, Dict, Any, Optional
 from crewai.tools import BaseTool
-from supabase import create_client, Client
 import logging
 from datetime import datetime
-from dotenv import load_dotenv
-from .brand_normalizer import get_brand_normalizer
-from .brand_normalizer import BrandNormalizer
+from pydantic import BaseModel, Field
+
+from .brand_normalizer import BrandNormalizer, get_brand_normalizer
+from ..store import SupabaseDatabase, FileManager
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class DataMergerTool(BaseTool):
+class DataMergerTool:
     """数据拼接工具 - 将搜索结果表和笔记详情表连接生成宽表"""
     name: str = "data_merger"
-    description: str = "根据指定关键词，将xhs_search_result和xhs_note表根据note_id连接，生成CSV宽表文件"
-    
-    # 声明Pydantic字段
-    url: Optional[str] = None
-    key: Optional[str] = None
-    client: Optional[Client] = None
-    brand_normalizer: Optional[BrandNormalizer] = None
-    column_mapping: Dict[str, str] = {}
-
+    description: str = "根据指定关键词，将xhs_search_result和xhs_note表根据note_id连接，生成CSV宽表文件，使用RRF算法合并多账户排名"
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.url = os.getenv("SEO_SUPABASE_URL")
-        self.key = os.getenv("SEO_SUPABASE_ANON_KEY")
-        
-        if not self.url or not self.key:
-            raise ValueError("请确保设置了 SEO_SUPABASE_URL 和 SEO_SUPABASE_ANON_KEY 环境变量")
-        
-        self.client = create_client(self.url, self.key)
         
         # 初始化品牌标准化器
         self.brand_normalizer = get_brand_normalizer()
-
+        
+        # 初始化数据库连接
+        self.db = SupabaseDatabase()
+        self.file_manager = FileManager()
+        
+        # 中英文列名映射
         self.column_mapping = {
         "keyword": "搜索关键词",
         "rank": "搜索排名",
@@ -62,6 +52,7 @@ class DataMergerTool(BaseTool):
         "data_crawler_time": "数据采集时间",
     }
         
+        logger.info(f"[DataMergerTool] 使用RRF倒数排名融合算法进行多账户排名合并")
     
     def _run(self, keyword: str, output_dir_inner: str = "data/export",  output_dir_outer: str = "outputs") -> str:
         """
@@ -137,46 +128,21 @@ class DataMergerTool(BaseTool):
     
     def _get_search_results(self, keyword: str) -> List[Dict[str, Any]]:
         """从xhs_search_result表获取指定关键词的搜索结果"""
-        try:
-            response = (
-                self.client.table("xhs_search_result")
-                .select("*")
-                .eq("keyword", keyword)
-                .order("rank", desc=False)  # 按排名升序排列
-                .execute()
-            )
-            return response.data
-        except Exception as e:
-            logger.error(f"获取搜索结果失败: {e}")
-            return []
+        return self.db.get_search_results_by_keyword(keyword)
     
     def _get_note_details(self, note_ids: List[str]) -> List[Dict[str, Any]]:
         """从xhs_note表获取指定note_id的笔记详情"""
-        if not note_ids:
-            return []
-        
-        try:
-            # Supabase的in操作
-            response = (
-                self.client.table("xhs_note")
-                .select("*")
-                .in_("note_id", note_ids)
-                .execute()
-            )
-            return response.data
-        except Exception as e:
-            logger.error(f"获取笔记详情失败: {e}")
-            return []
+        return self.db.get_note_details_by_ids(note_ids)
     
     def _merge_multi_account_rankings(self, search_results: List[Dict]) -> Dict[str, Dict]:
         """
-        合并多账户的排序结果
+        合并多账户的排序结果（使用RRF算法）
         
         Args:
             search_results: 原始搜索结果列表
             
         Returns:
-            Dict[note_id, {merged_rank, final_rank, account_ranks, account_list}]
+            Dict[note_id, {rrf_score, final_rank, account_ranks, account_list}]
         """
         # 按note_id分组，收集各账户的排名
         note_rankings = {}
@@ -203,11 +169,10 @@ class DataMergerTool(BaseTool):
         
         all_accounts = sorted(list(all_accounts))
         account_count = len(all_accounts)
-        max_rank = 110  # 搜索结果最大排名
         
         logger.info(f"[DataMergerTool] 发现 {account_count} 个搜索账户: {all_accounts}")
         
-        # 计算每个note_id的合并排名
+        # 计算每个note_id的RRF分数
         merged_rankings = {}
         
         for note_id, data in note_rankings.items():
@@ -217,66 +182,107 @@ class DataMergerTool(BaseTool):
             ranks = []
             for account in all_accounts:
                 ranks.append(account_ranks.get(account))
-            # 计算合并排名
-            merged_rank = self._calculate_merged_rank(ranks, max_rank)
+            
+            # 计算RRF分数
+            rrf_score = self._calculate_rrf_score(ranks)
             
             merged_rankings[note_id] = {
-                'merged_rank': merged_rank,
+                'rrf_score': rrf_score,
                 'account_ranks': account_ranks,
                 'account_list': all_accounts,
                 'search_records': data['search_records']
             } 
         
-        # 按合并排名排序，分配最终排名
-        sorted_notes = sorted(merged_rankings.items(), key=lambda x: x[1]['merged_rank'])
+        # RRF算法：分数越高越好（降序排列）
+        sorted_notes = sorted(merged_rankings.items(), 
+                            key=lambda x: x[1]['rrf_score'], reverse=True)
         
+        # 分配最终排名
         for final_rank, (note_id, data) in enumerate(sorted_notes, 1):
             merged_rankings[note_id]['final_rank'] = final_rank
+            merged_rankings[note_id]['merged_rank'] = data['rrf_score']  # 保持兼容性
         
         # 记录排序结果
-        logger.info(f"[DataMergerTool] 排序示例（前5名）:")
+        logger.info(f"[DataMergerTool] RRF排序示例（前5名）:")
+        
         for i, (note_id, data) in enumerate(sorted_notes[:5]):
             account_ranks_str = ', '.join([f"{acc}:{data['account_ranks'].get(acc, 'N/A')}" 
                                          for acc in all_accounts])
-            logger.info(f"  {i+1}. {note_id}: 合并排名={data['merged_rank']:.2f}, 各账户排名=[{account_ranks_str}]")
+            
+            coverage = len([r for r in [data['account_ranks'].get(acc) for acc in all_accounts] if r is not None])
+            
+            logger.info(f"  {i+1}. {note_id}: RRF分数={data['rrf_score']:.4f}, "
+                       f"覆盖账户={coverage}/{len(all_accounts)}, "
+                       f"各账户排名=[{account_ranks_str}]")
         
         return merged_rankings
     
-    def _calculate_merged_rank(self, ranks: List[Optional[int]], max_rank: int = 110) -> float:
+    def _calculate_rrf_score(self, ranks: List[Optional[int]], k: int = 60) -> float:
         """
-        计算合并排名（加权平均 + 惩罚因子算法）
+        倒数排名融合算法（Reciprocal Rank Fusion - RRF）
+        
+        算法原理：
+        RRF是一种经典的多列表排名融合算法，最初用于信息检索领域。
+        它通过计算各个排名的倒数和来融合多个排名列表，自然地平衡了不同来源的权重。
+        
+        数学公式：
+        RRF_score = Σ(1/(k + rank_i)) for all valid ranks
+        
+        其中：
+        - rank_i: 内容在第i个账户中的排名
+        - k: 平滑常数，用于减少排名差异的影响，通常设为60
+        - 只对有效排名（非None）进行求和
+        
+        算法优势：
+        1. 自然平衡性：倒数函数使得前排和后排的差距符合直觉
+        2. 多账户友好：在多个账户中出现的内容会获得更高的总分
+        3. 抗异常值：单个账户的极端排名不会过度影响最终结果
+        4. 无参数敏感性：k值的选择对结果影响相对较小
+        
+        学术出处：
+        - Cormack, G. V., Clarke, C. L., & Buettcher, S. (2009). 
+          "Reciprocal rank fusion outperforms condorcet and individual rank learning methods"
+          In Proceedings of the 32nd international ACM SIGIR conference
+        - 广泛应用于搜索引擎结果融合、推荐系统等领域
+        
+        实际应用场景：
+        适用于小红书多账户搜索结果合并，解决原始算法对单账户高排名过于友好的问题。
         
         Args:
             ranks: 各账户的排名列表，None表示未出现
-            max_rank: 最大排名值
+            k: RRF常数，通常设为60，用于平滑排名差异
             
         Returns:
-            合并后的排名分数
+            RRF分数（越高越好，需要按降序排列）
+            
+        Example:
+            ranks = [1, None, None, None]  # 单账户排名1
+            rrf_score = 1/(60+1) = 0.0164
+            
+            ranks = [5, 7, 9, None]  # 多账户排名5,7,9  
+            rrf_score = 1/(60+5) + 1/(60+7) + 1/(60+9) = 0.0448
+            
+            结果：多账户稳定排名获得更高分数
         """
         valid_ranks = [r for r in ranks if r is not None]
-        missing_count = len(ranks) - len(valid_ranks)
         
         if not valid_ranks:
-            # 完全没有出现的内容，给予最差排名
-            return max_rank * 2
+            # 完全没有出现的内容，返回最低分数
+            return 0.0
         
-        # 方法：加权平均 + 惩罚因子
-        avg_rank = sum(valid_ranks) / len(valid_ranks)
+        # 计算RRF分数：对所有有效排名计算倒数和
+        # 公式：RRF_score = Σ(1/(k + rank_i))
+        rrf_score = sum(1.0 / (k + rank) for rank in valid_ranks)
         
-        # 对缺失数据添加惩罚：每缺失一个账户，排名后移15%
-        penalty_rate = 0.15
-        penalty = missing_count * penalty_rate * avg_rank
-        
-        merged_rank = avg_rank + penalty
-        
-        return merged_rank
+        # RRF分数越高排名越好
+        return rrf_score
     
     def _merge_data_with_rankings(self, merged_rankings: Dict, note_details: List[Dict], keyword: str) -> List[Dict]:
         """
-        使用合并排序结果拼接数据
+        使用RRF排序结果拼接数据
         
         Args:
-            merged_rankings: 合并排序结果
+            merged_rankings: RRF排序结果
             note_details: 笔记详情列表
             keyword: 关键词
             
@@ -311,11 +317,9 @@ class DataMergerTool(BaseTool):
                 # 搜索结果字段（使用代表性记录）
                 'search_id': representative_search.get('id'),
                 'keyword': keyword,
-                #'search_account': 'MERGED',  # 标识为合并结果
-                #'account_count': len(ranking_data['account_ranks']),  # 出现在多少个账户中
                 'rank': ranking_data['final_rank'],  # 最终排名
-                #'merged_rank': round(ranking_data['merged_rank'], 2),  # 合并排名分数
-                #'account_ranks': '; '.join(account_ranks_info),  # 各账户排名详情
+                'rrf_score': round(ranking_data['rrf_score'], 4),  # RRF分数
+                'account_ranks': '; '.join(account_ranks_info),  # 各账户排名详情
                 'note_id': note_id,
                 
                 # 笔记详情字段
@@ -425,12 +429,15 @@ class DataMergerTool(BaseTool):
     
     def _parse_json_field(self, field_value: Any) -> Any:
         """安全解析JSON字段"""
-        if isinstance(field_value, str):
-            try:
-                return json.loads(field_value)
-            except (json.JSONDecodeError, TypeError):
-                return field_value
-        return field_value
+        if pd.isna(field_value):
+            return []
+        
+        try:
+            if isinstance(field_value, str):
+                return self.file_manager.parse_json_string(field_value)
+            return field_value
+        except (ValueError, TypeError):
+            return []
     
     def _has_valid_brand_info(self, brand_list) -> bool:
         """判断是否有有效的品牌信息"""
@@ -457,12 +464,12 @@ class DataMergerTool(BaseTool):
         
         # 生成文件名
         timestamp = datetime.now().strftime("%Y%m%d")
-        output_dir_inner = output_dir_inner + "/" + keyword 
-        output_dir_outer = output_dir_outer + "/" + keyword 
+        output_dir_inner = self.file_manager.build_path(output_dir_inner, keyword)
+        output_dir_outer = self.file_manager.build_path(output_dir_outer, keyword)
         
         # 确保输出目录存在
-        os.makedirs(output_dir_inner, exist_ok=True)
-        os.makedirs(output_dir_outer, exist_ok=True)
+        self.file_manager.ensure_directory(output_dir_inner)
+        self.file_manager.ensure_directory(output_dir_outer)
         
         # 按rank排序并只取前100名
         sorted_data = sorted(data, key=lambda x: x.get('rank', float('inf')))
@@ -471,7 +478,7 @@ class DataMergerTool(BaseTool):
         logger.info(f"[DataMergerTool] 原始数据{len(data)}条，筛选前100名后为{len(top_100_data)}条")
         
         filename = f"merged_data_{timestamp}.csv"
-        filepath = os.path.join(output_dir_inner, filename)
+        filepath = self.file_manager.build_path(output_dir_inner, filename)
         
         # 转换为DataFrame并保存
         df = pd.DataFrame(top_100_data)
@@ -480,11 +487,11 @@ class DataMergerTool(BaseTool):
         json_columns = ['image_list', 'tag_list', 'brand_list', 'spu_list', 'emotion_dict', 'evaluation_dict']
         for col in json_columns:
             if col in df.columns:
-                df[col] = df[col].apply(lambda x: json.dumps(x, ensure_ascii=False) if x else '')
+                df[col] = df[col].apply(lambda x: self.file_manager.to_json_string(x, ensure_ascii=False) if x else '')
         
         # 生成对外输出的中文CSV文件
         outer_filename = f"basic_data_{timestamp}.csv"
-        outer_filepath = os.path.join(output_dir_outer, outer_filename)
+        outer_filepath = self.file_manager.build_path(output_dir_outer, outer_filename)
         
         # 筛选column_mapping中存在的列并重命名为中文
         available_columns = [col for col in self.column_mapping.keys() if col in df.columns]
@@ -492,8 +499,8 @@ class DataMergerTool(BaseTool):
         df_chinese.rename(columns=self.column_mapping, inplace=True)
 
         # 保存CSV
-        df.to_csv(filepath, index=False, encoding='utf-8-sig')
-        df_chinese.to_csv(outer_filepath, index=False, encoding='utf-8-sig')
+        self.file_manager.save_csv(df, filepath)
+        self.file_manager.save_csv(df_chinese, outer_filepath)
         
         logger.info(f"[DataMergerTool] 内部数据已保存到: {filepath}")
         logger.info(f"[DataMergerTool] 对外数据已保存到: {outer_filepath}")
@@ -516,21 +523,29 @@ class DataMergerTool(BaseTool):
                 except:
                     pass
         
-        # 计算平均合并排名
-        merged_ranks = [record['merged_rank'] for record in merged_data if record.get('merged_rank') is not None]
-        avg_merged_rank = sum(merged_ranks) / len(merged_ranks) if merged_ranks else 0
+        # 计算平均RRF分数
+        rrf_scores = [record['rrf_score'] for record in merged_data if record.get('rrf_score') is not None]
+        avg_rrf_score = sum(rrf_scores) / len(rrf_scores) if rrf_scores else 0
         
-        # 计算账户统计
-        account_counts = [record['account_count'] for record in merged_data if record.get('account_count') is not None]
-        avg_account_count = sum(account_counts) / len(account_counts) if account_counts else 0
-        max_account_count = max(account_counts) if account_counts else 0
+        # 计算账户覆盖统计
+        account_coverage = []
+        for record in merged_data:
+            account_ranks = record.get('account_ranks', '')
+            if account_ranks:
+                # 统计有排名的账户数（不是N/A的）
+                ranks_list = account_ranks.split('; ')
+                coverage = sum(1 for rank_info in ranks_list if not rank_info.endswith(':N/A'))
+                account_coverage.append(coverage)
+        
+        avg_account_coverage = sum(account_coverage) / len(account_coverage) if account_coverage else 0
+        max_account_count = max(account_coverage) if account_coverage else 0
         
         return {
             'matched_count': matched_count,
             'unmatched_count': unmatched_count,
             'with_brand_count': with_brand_count,
             'unique_brands': len(all_brands),
-            'avg_merged_rank': avg_merged_rank,
-            'account_count': max_account_count,  # 总共涉及的账户数
-            'avg_account_per_note': avg_account_count  # 平均每个笔记出现在多少个账户中
+            'avg_rrf_score': avg_rrf_score,
+            'account_count': max_account_count,  # 最大账户覆盖数
+            'avg_account_per_note': avg_account_coverage  # 平均每个笔记的账户覆盖数
         } 

@@ -12,13 +12,115 @@
 - **AI驱动**: 使用大语言模型进行高精度分析
 - **🆕 批量处理优化**: 智能控制处理数量，避免上下文长度超限
 - **🆕 内容长度自适应**: 自动截断过长内容，保持分析质量
+- **🆕 分层架构**: 数据交互层与应用服务层分离，提供清晰的架构层次
 
 ## 🏗️ 系统架构
 
-系统采用 CrewAI 多Agent协作架构，经过优化后使用更高效的两Agent设计：
+### 整体架构设计
+
+系统采用分层架构设计，将数据访问与业务逻辑分离，提供清晰的职责划分：
+
+```
+src/xhs_public_opinion/
+├── store/                      # 数据交互层（Data Access Layer）
+│   ├── __init__.py            # 统一导出接口
+│   ├── database.py            # 数据库操作抽象
+│   └── file_manager.py        # 文件操作抽象
+├── tools/                      # 应用服务层（Application Service Layer）
+│   ├── database_service_tools.py  # 数据库服务工具
+│   ├── brand_sentiment_extractor.py
+│   ├── sov_calculator_tool.py
+│   ├── data_merger_tool.py
+│   └── ... (其他业务工具)
+└── agents/                     # AI代理层（Agent Layer）
+    └── ... (CrewAI代理定义)
+```
+
+### 数据交互层 (Store Layer)
+
+**职责**: 统一管理所有数据持久化操作，包括数据库访问和文件操作
+
+#### 1. 数据库操作 (`store/database.py`)
+- **SupabaseDatabase类**: 封装所有Supabase数据库操作
+- **XHSNote模型**: 小红书笔记数据模型
+- **主要功能**:
+  - 笔记数据CRUD操作
+  - 品牌情感数据批量写入
+  - SOV分析数据管理
+  - 可视化数据查询
+  - 数据安全处理（safe_str, safe_int等）
+
+```python
+# 使用示例
+from ..store import SupabaseDatabase
+db = SupabaseDatabase()
+notes = db.get_unprocessed_notes(limit=10)
+result = db.batch_insert_sentiment_data(data_list)
+```
+
+#### 2. 文件操作 (`store/file_manager.py`)
+- **FileManager主类**: 统一文件操作入口
+- **专门管理器**:
+  - `CSVManager`: CSV文件读写
+  - `JSONManager`: JSON数据处理
+  - `ImageManager`: 图片文件操作
+  - `DirectoryManager`: 目录管理
+  - `FileSearchManager`: 文件搜索
+
+```python
+# 使用示例
+from ..store import FileManager
+file_manager = FileManager()
+df = file_manager.read_csv("data.csv")
+file_manager.save_chart(plt.gcf(), "chart.png")
+```
+
+### 应用服务层 (Tools Layer)
+
+**职责**: 实现具体的业务逻辑，专注于功能实现，通过数据交互层访问数据
+
+#### 统一初始化模式
+所有工具类采用统一的初始化模式：
+
+```python
+def __init__(self, **kwargs):
+    super().__init__(**kwargs)
+    # 统一初始化数据交互层组件
+    self.db = SupabaseDatabase()
+    self.file_manager = FileManager()
+```
+
+#### 主要工具类
+- **BrandSentimentExtractorTool**: 品牌情感提取分析
+- **SOVCalculatorTool**: 品牌声量占有率计算
+- **DataMergerTool**: 数据合并处理
+- **SOVVisualizationTool**: SOV数据可视化
+- **BrandSentimentVisualizationTool**: 品牌情感可视化
+
+### CrewAI代理架构
+
+系统使用优化后的两Agent设计：
 
 1. **数据分析师 (Data Analyst)**: 负责从数据库读取笔记数据和预处理
 2. **智能分析师 (Intelligent Analyst)**: 负责完整的品牌识别、情感分析和结果写入
+
+### 架构设计原则
+
+1. **单一职责原则**: 每层专注于特定职责
+   - 数据交互层：仅负责数据访问
+   - 应用服务层：专注业务逻辑
+
+2. **依赖倒置**: 应用层依赖抽象而非具体实现
+   - 通过统一接口访问数据
+   - 便于测试和维护
+
+3. **开放封闭原则**: 对扩展开放，对修改封闭
+   - 新增数据源时只需扩展数据交互层
+   - 新增业务功能时只需添加新的工具类
+
+4. **向后兼容**: 保持所有对外接口不变
+   - 工具类的使用方式保持一致
+   - 现有代码无需修改
 
 ## 📋 数据库表结构
 
@@ -89,6 +191,91 @@ python -m xhs_public_opinion.main replay task_id
 
 # 测试模型
 python -m xhs_public_opinion.main test 5 gpt-4
+```
+
+## 🔧 开发指南
+
+### 添加新的数据操作
+
+当需要新增数据操作时，在数据交互层中扩展：
+
+```python
+# 在 store/database.py 中添加新方法
+class SupabaseDatabase:
+    def new_data_operation(self, params):
+        # 实现新的数据库操作
+        pass
+
+# 在 store/file_manager.py 中添加新的文件操作
+class FileManager:
+    def new_file_operation(self, params):
+        # 实现新的文件操作
+        pass
+```
+
+### 添加新的业务工具
+
+创建新工具类时遵循统一模式：
+
+```python
+from crewai.tools import BaseTool
+from ..store import SupabaseDatabase, FileManager
+
+class NewBusinessTool(BaseTool):
+    name: str = "new_business_tool"
+    description: str = "新业务工具描述"
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # 统一初始化
+        self.db = SupabaseDatabase()
+        self.file_manager = FileManager()
+    
+    def _run(self, **kwargs):
+        # 业务逻辑实现
+        # 使用 self.db 和 self.file_manager 进行数据操作
+        pass
+```
+
+### 数据交互层使用指南
+
+#### 数据库操作示例
+
+```python
+# 读取数据
+notes = self.db.get_unprocessed_notes(limit=10)
+sov_data = self.db.get_sov_data(keyword="护肤", start_date="2024-01-01")
+
+# 写入数据
+result = self.db.batch_insert_sentiment_data(sentiment_data)
+success = self.db.update_note_analysis(note_id, analysis_result)
+
+# 数据安全处理
+safe_title = self.db.safe_str(raw_title, "默认标题")
+safe_count = self.db.safe_int(raw_count, 0)
+```
+
+#### 文件操作示例
+
+```python
+# CSV操作
+df = self.file_manager.read_csv("input.csv")
+self.file_manager.save_csv(df, "output.csv")
+
+# JSON操作
+data = self.file_manager.parse_json_string(json_str)
+json_str = self.file_manager.to_json_string(data)
+
+# 文件系统操作
+self.file_manager.ensure_directory("outputs/charts")
+exists = self.file_manager.file_exists("data.csv")
+path = self.file_manager.build_path("outputs", "result.csv")
+
+# 图表保存
+import matplotlib.pyplot as plt
+plt.figure()
+# ... 绘图代码 ...
+self.file_manager.save_chart(plt.gcf(), "chart.png")
 ```
 
 ## 📊 分析结果格式

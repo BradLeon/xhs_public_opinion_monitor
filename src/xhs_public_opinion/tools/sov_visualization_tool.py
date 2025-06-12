@@ -1,19 +1,27 @@
+"""
+SOV Visualization Tool
+
+Creates visualizations for Share of Voice (SOV) analysis results.
+Uses the store layer's FileManager for all file and image operations.
+"""
+
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 from typing import Dict, Any, List, Optional, Tuple
-from supabase import create_client, Client
 from crewai.tools import BaseTool
 import logging
 from datetime import datetime
 import matplotlib.patches as mpatches
 from matplotlib.gridspec import GridSpec
 import warnings
-from supabase import create_client
 import matplotlib.font_manager as fm
+from pydantic import BaseModel, Field
 
+from ..store import SupabaseDatabase, FileManager
+    
 # 设置中文字体和样式 - 改进字体配置
 def setup_chinese_fonts():
     """设置中文字体"""
@@ -62,26 +70,16 @@ warnings.filterwarnings('ignore')
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class SOVVisualizationTool(BaseTool):
+class SOVVisualizationTool:
     """SOV可视化工具 - 生成品牌SOV周报图表（仅支持数据库模式）"""
     name: str = "sov_visualization"
     description: str = "基于数据库SOV数据生成品牌周报可视化图表，支持三档位并排显示"
-    # 声明Pydantic字段
-    supabase_url: Optional[str] = None
-    supabase_key: Optional[str] = None
-    client: Optional[Client] = None
     
-    def __init__(self):
-        super().__init__()
-        # 初始化Supabase客户端
-        self.supabase_url = os.getenv("SEO_SUPABASE_URL")
-        self.supabase_key = os.getenv("SEO_SUPABASE_ANON_KEY")
-        
-        if self.supabase_url and self.supabase_key:
-            self.client = create_client(self.supabase_url, self.supabase_key)
-        else:
-            logger.error("未设置Supabase环境变量，无法使用数据库功能")
-            self.client = None
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # 初始化数据库连接
+        self.db = SupabaseDatabase()
+        self.file_manager = FileManager()
     
     def _run(self, keyword: str, 
              output_dir: str = "outputs",
@@ -98,7 +96,7 @@ class SOVVisualizationTool(BaseTool):
             生成的图表文件路径
         """
         try:
-            if not self.client:
+            if not self.db.client:
                 return "❌ 数据库连接失败，请检查环境变量配置"
             
             logger.info(f"[SOVVisualization] 开始生成关键词 '{keyword}' 的三档位图表...")
@@ -120,10 +118,6 @@ class SOVVisualizationTool(BaseTool):
     def _load_sov_data_from_db(self, keyword: str) -> Tuple[Optional[Dict], Optional[Dict]]:
         """从数据库加载SOV数据"""
         try:
-            if not self.client:
-                logger.error("Supabase客户端未初始化")
-                return None, None
-            
             current_data = {}
             previous_data = {}
             
@@ -131,19 +125,11 @@ class SOVVisualizationTool(BaseTool):
             tiers_to_query = ["20","50","100"]
             
             for t in tiers_to_query:
-                # 查询最近的SOV数据
-                response = (
-                    self.client.table("xhs_keyword_sov_result")
-                    .select("*")
-                    .eq("keyword", keyword)
-                    .eq("tier_limit", t)
-                    .order("created_at", desc=True)
-                    .limit(100)
-                    .execute()
-                )
+                # 使用统一的数据库方法获取数据
+                raw_data = self.db.get_sov_visualization_data(keyword, tier_limit=t, limit=100)
                 
-                if response.data:
-                    df = pd.DataFrame(response.data)
+                if raw_data:
+                    df = pd.DataFrame(raw_data)
                     df['created_at'] = pd.to_datetime(df['created_at'])
                     df['date'] = df['created_at'].dt.date
           
@@ -177,8 +163,8 @@ class SOVVisualizationTool(BaseTool):
         """生成三档位并排图表"""
         
         # 创建输出目录
-        chart_dir = os.path.join(output_dir, keyword, "charts")
-        os.makedirs(chart_dir, exist_ok=True)
+        chart_dir = self.file_manager.build_path(output_dir, keyword, "charts")
+        self.file_manager.ensure_directory(chart_dir)
         
         # 创建图表 - 1行3列布局，增加高度并调整子图间距
         fig, axes = plt.subplots(1, 3, figsize=(24, 12))
@@ -218,12 +204,13 @@ class SOVVisualizationTool(BaseTool):
         # 保存图表
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         chart_filename = f"SOV_ThreeTier_{keyword}_{timestamp}.png"
-        chart_path = os.path.join(chart_dir, chart_filename)
+        chart_path = self.file_manager.build_path(chart_dir, chart_filename)
         
         # 不使用tight_layout，因为我们已经手动调整了布局
         plt.savefig(chart_path, dpi=300, bbox_inches='tight', facecolor='white', edgecolor='none')
         plt.close()
         
+        logger.info(f"图表已保存: {chart_path}")
         return chart_path
     
     def _draw_tier_sov_chart(self, ax, current_data: List[Dict], 
