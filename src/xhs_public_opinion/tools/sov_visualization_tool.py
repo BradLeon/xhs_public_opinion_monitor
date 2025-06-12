@@ -228,7 +228,7 @@ class SOVVisualizationTool:
         # 提取品牌和SOV数据
         brands = [item['brand'] for item in current_data]
         sov_values = [float(item['sov_percentage']) for item in current_data]
-        logger.info(f"[_draw_tier_sov_chart] current data tier : {tier_name}, brands: {brands}, sov_values: {sov_values}")
+        # logger.info(f"[_draw_tier_sov_chart] current data tier : {tier_name}, brands: {brands}, sov_values: {sov_values}")
         
         # 定义y轴位置
         y_pos = np.arange(len(brands))

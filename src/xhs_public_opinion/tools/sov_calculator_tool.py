@@ -188,8 +188,7 @@ class SOVCalculatorTool:
                 'sov_percentage': round(sov_percentage, 2),
                 'rank': len(sov_data) + 1
             })
-            logger.info(f"[SOVCalculatorTool] 品牌: {brand}, 声量占比: {sov_percentage}, 排名: {len(sov_data) + 1}", "total_mentions: ", total_mentions)
-        
+
         return {
             'method': 'simple',
             'total_mentions': total_mentions,
