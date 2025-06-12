@@ -78,6 +78,7 @@ def run():
             if not analysis_success:
                 print("   ⚠️ 多模态分析失败，但继续后续步骤")
             
+
             # 步骤3: SOV计算
             print("📈 步骤3: SOV计算...")
             _sov_calculator(keyword=keyword)
@@ -86,6 +87,7 @@ def run():
             print("💝 步骤4: 品牌情感分析...")
             _extract_brand_sentiment(keyword=keyword, brand=target_brand, csv_input_path=merged_data_path)
             
+
             # 步骤5: SOV可视化图表生成
             print("📊 步骤5: SOV可视化图表生成...")
             _sov_visualization(keyword=keyword, target_brand=target_brand)

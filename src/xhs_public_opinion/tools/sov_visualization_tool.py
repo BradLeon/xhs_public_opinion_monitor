@@ -126,7 +126,7 @@ class SOVVisualizationTool:
             
             for t in tiers_to_query:
                 # 使用统一的数据库方法获取数据
-                raw_data = self.db.get_sov_visualization_data(keyword, tier_limit=t, limit=100)
+                raw_data = self.db.get_sov_visualization_data(keyword, tier_limit=t, limit=1000)
                 
                 if raw_data:
                     df = pd.DataFrame(raw_data)
@@ -134,6 +134,8 @@ class SOVVisualizationTool:
                     df['date'] = df['created_at'].dt.date
           
                     unique_dates = sorted(df['date'].unique(), reverse=True)
+
+                    # logger.info(f"[SOVVisualization] 档位: {t}, 日期: {unique_dates}")
                     
                     if len(unique_dates) >= 1:
                         # 最新日期的数据
@@ -241,7 +243,7 @@ class SOVVisualizationTool:
         for brand, current_sov in zip(brands, sov_values):
             if brand in previous_dict:
                 previous_sov = previous_dict[brand]
-                change = current_sov - previous_sov
+                change = current_sov - previous_sov  # 保持为数值类型，不转换为字符串
                 changes.append(change)
                 
                 # 确定趋势箭头
@@ -251,6 +253,7 @@ class SOVVisualizationTool:
                     trends.append('↓')
                 else:
                     trends.append('→')
+                
             else:
                 changes.append(None)  # 新品牌
                 trends.append('🆕')
@@ -258,9 +261,6 @@ class SOVVisualizationTool:
   
         # 生成颜色 - 使用渐变色而非硬编码
         colors = plt.cm.Set3(np.linspace(0, 1, len(brands)))
-        
-        # 绘制横向条形图
-
         
         # 绘制横向条形图，目标品牌使用特殊样式
         bars = []
@@ -294,9 +294,9 @@ class SOVVisualizationTool:
         for i, (bar, sov, change, trend) in enumerate(zip(bars, sov_values, changes, trends)):
             width = bar.get_width()
             
-            # SOV百分比标签
+            # SOV标签
             ax.text(width + max_sov * 0.01, bar.get_y() + bar.get_height()/2, 
-                   f'{sov:.1f}%', ha='left', va='center', fontsize=9, fontweight='bold',
+                   f'{sov:.1f}', ha='left', va='center', fontsize=9, fontweight='bold',
                    fontproperties=fm.FontProperties(family=chinese_font))
             
             # 环比变化标签
@@ -307,7 +307,7 @@ class SOVVisualizationTool:
                        trend, ha='center', va='center', fontsize=12, 
                        color=trend_color, fontweight='bold')
                 
-                # 变化数值
+                # 变化数值 - 统一使用百分比格式
                 if trend != '→':
                     change_text = f'+{change:.1f}' if change > 0 else f'{change:.1f}'
                     ax.text(width + max_sov * 0.22, bar.get_y() + bar.get_height()/2, 
@@ -334,13 +334,6 @@ class SOVVisualizationTool:
         ax.spines['right'].set_visible(False)
         ax.grid(axis='x', alpha=0.3, linestyle='--')
         
-        # 添加说明文字 - 调整位置到图表外部
-        if previous_data:
-            # 将说明文字放到图表顶部外侧，避免与图表重叠
-            ax.text(0.02, 1.02, '环比变化: ↑上升 ↓下降 →持平 🆕新上榜', 
-                   transform=ax.transAxes, fontsize=8, va='bottom', 
-                   bbox=dict(boxstyle="round,pad=0.3", facecolor='lightblue', alpha=0.6),
-                   fontproperties=fm.FontProperties(family=chinese_font))
     
     def _add_three_tier_annotations(self, fig, keyword: str, current_data: Dict, previous_data: Optional[Dict]):
         """添加三档位图表的整体说明"""
